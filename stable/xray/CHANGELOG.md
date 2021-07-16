@@ -1,5 +1,186 @@
 # JFrog Xray Chart Changelog
-All changes to this chart will be documented in this file.
+All changes to this chart will be documented in this file
+
+## [103.27.4] - July 7, 2021
+* Added required services for router container in systemYaml
+
+## [103.27.2] - June 15, 2021
+* Added configurable `.Values.global.versions.router` in values.yaml
+
+## [103.26.1] - June 3, 2021
+* Added rabbitmq.nameOverride support for rabbitmq password and url
+
+## [103.25.2] - May 26, 2021
+* Update router version to `7.19.4`
+
+## [103.25.1] - May 21, 2021
+* Bumping chart version to align with app version
+* Fix broken support for startupProbe for k8s < 1.18.x
+* Update router version to `7.18.2`
+* Added support for `nameOverride` and `fullnameOverride` in values.yaml
+* Fix STS name in hpa
+
+## [8.0.0] - April 22, 2021
+* **Breaking change:** 
+* Increased default postgresql persistence  size to `300Gi` 
+* Update postgresql tag version to `13.2.0-debian-10-r55`
+* Update postgresql chart version to `10.3.18` in chart.yaml - [10.x Upgrade Notes](https://github.com/bitnami/charts/tree/master/bitnami/postgresql#to-1000)
+* If this is a new deployment or you already use an external database (`postgresql.enabled=false`), these changes **do not affect you**!
+* If this is an upgrade and you are using the default PostgreSQL (`postgresql.enabled=true`), you need to pass previous 9.x/10.x/12.x's postgresql.image.tag, previous postgresql.persistence.size and databaseUpgradeReady=true
+* **IMPORTANT**
+* This chart is only helm v3 compatible
+* Update Xray to version `3.23.0` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.23)
+* Update rabbitmq tag version to `3.8.14-debian-10-r32`
+* Update router version to `7.17.5`
+* Update alpine tag version to `3.13.5`
+
+## [7.7.0] - April 6, 2021
+* Update Xray to version `3.22.1`
+
+## [7.6.1] - April 6, 2021
+* Update alpine tag version to `3.13.4`
+
+## [7.6.0] - Apr 5, 2021
+* **IMPORTANT**
+* Added `charts.jfrog.io` as default JFrog Helm repository
+
+## [7.5.1] - Mar 31, 2021
+* Update Xray to version `3.21.2` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.21.2)
+
+## [7.5.0] - Mar 30, 2021
+* Update Xray to version `3.21.0`
+* Update router version to `7.17.2`
+* Add `timeoutSeconds` to all exec probes - Please refer [here](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes)
+
+## [7.4.0] - Mar 24, 2021
+* Update Xray to version `3.20.1`
+* Update router version to `7.17.1`
+* Optimized startupProbe time
+* Add support for graceful shutdown
+
+## [7.3.0] - Mar 18, 2021
+* Add support to startupProbe
+
+## [7.2.0] - Mar 12, 2021
+* Update Xray to version `3.19.1`
+
+## [7.1.1] - Mar 9, 2021
+* Update Xray to version `3.18.1` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.18.1)
+* Removed bintray URL references in the chart
+* Update router version to `7.15.3`
+
+## [7.1.0] - Mar 03, 2021
+* Update Xray to version `3.18.0` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.18)
+
+## [7.0.2] - Feb 18, 2021
+* Update router version to `7.15.2`
+
+## [7.0.1] - Feb 18, 2021
+* Update Xray to version `3.17.4` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.17.4)
+
+## [7.0.0] - Feb 10, 2021
+* **Breaking changes:**
+* Deprecation of  rabbitmq-ha chart - [Notes](https://github.com/helm/charts/tree/master/stable/rabbitmq-ha#%EF%B8%8F-deprecated---rabbitmq-high-available)
+* Added RABBITMQ_MIGRATION_NOTES.md - Steps for migration of data from rabbitmq-ha to rabbitmq bitnami
+* **Important:** Migration to bitnami rabbitmq should be done before upgrading to 7.x chart versions
+
+## [6.11.0] - Feb 08, 2021
+* Support for custom certificates using secrets
+* **Important:** Switched docker images download from `docker.bintray.io` to `releases-docker.jfrog.io`
+* Update alpine tag version to `3.13.1`
+* Update Xray to version `3.17.2`
+* Update router version to `7.12.6`
+
+## [6.10.0] - Jan 25, 2021
+* Update Xray to version `3.16.0` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.16)
+* Added support for passing additionalSpec to xray service resource
+* Removed unused variables in values.yaml
+
+## [6.9.3] - Jan 25, 2021
+* Add support for hostAliases
+
+## [6.9.2] - Jan 13, 2021
+* Update Xray to version `3.15.3` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.15.3)
+
+## [6.9.1] - Jan 5, 2021
+* Add support for creating additional kubernetes resources - [refer here](https://github.com/jfrog/log-analytics-prometheus/blob/master/helm/xray-values.yaml)
+* Update router version to `7.12.4`
+
+## [6.9.0] - Dec 31, 2020
+* Update Xray to version `3.15.1` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.15.1)
+
+## [6.8.3] - Dec 29, 2020
+* Update Xray to version `3.14.3` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.14.3)
+
+## [6.8.2] - Dec 28, 2020
+* Updated Xray application sizing yamls (values-small.yaml, values-medium.yaml, values-large.yaml)
+
+## [6.8.1] - Dec 24, 2020
+* Update Xray to version `3.14.1` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.14.1)
+
+## [6.8.0] - Dec 18, 2020
+* Update Xray to version `3.14.0`
+
+## [6.7.2] - Dec 14, 2020
+* Added support for passing actualUsername in secrets
+
+## [6.7.1] - Dec 11, 2020
+* Added configurable `.Values.global.versions.xray` in values.yaml
+
+## [6.7.0] - Dec 10, 2020
+* Update postgresql tag version to `12.5.0-debian-10-r25`
+* Update rabbitmq tag version to `3.8.9-debian-10-r58`
+* Update rabbitmq-ha tag version to `3.8.9-alpine`
+
+## [6.6.0] - Dec 8, 2020
+* Update Xray to version `3.13.0` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.13)
+* Updated chart maintainers email
+
+## [6.5.2] - Dec 4, 2020
+* **Important:** Renamed `.Values.systemYaml` to `.Values.systemYamlOverride`
+
+## [6.5.1] - Nov 30, 2020
+* Updated port namings on services and pods to allow for istio protocol discovery
+
+## [6.5.0] - Nov 30, 2020
+* Update Xray to version `3.12.0` - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.12)
+* Update router version to `7.11.2`
+* Update alpine tag version to `3.12.1`
+
+## [6.4.4] - Nov 20, 2020
+* Support external rabbitmq credentials to come from existing secret
+
+## [6.4.3] - Nov 16, 2020
+* Support actualUsername for Azure
+* Bugfix - Issue with custom image tags
+
+## [6.4.2] - Nov 16, 2020
+* Update Xray to version 3.11.2 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.11)
+
+## [6.4.1] - Nov 10, 2020
+* Pass system.yaml via external secret for advanced usecases
+* Bugfix - stateful set not picking up changes to database secrets
+
+## [6.4.0] - Nov 9, 2020
+* Update Xray to version 3.11.1 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.11)
+* Fix values-small,medium,large yaml files
+
+## [6.3.0] - Nov 3, 2020
+* Change stable repository location to https://charts.helm.sh/stable
+* Update bitnami rabbitmq chart to 7.7.1
+
+## [6.2.1] - Oct 23, 2020
+* Update router version to `1.4.4`
+
+## [6.2.0] - Oct 23, 2020
+* Update Xray to version 3.10.3 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Xray+Release+Notes#XrayReleaseNotes-Xray3.10.3)
+
+## [6.1.2] - Oct 9, 2020
+* Add global support for customInitContainersBegin
+
+## [6.1.1] - Oct 5, 2020
+* Fixed broken joinkey condition
+* Updated UPGRADE_NOTES.md
 
 ## [6.1.0] - Oct 1, 2020
 * Update Xray to version 3.9.1

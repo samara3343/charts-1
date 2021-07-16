@@ -1,4 +1,4 @@
-{{- if and (.Values.rabbitmq.serviceVmLb.enabled) (.Values.rabbitmq.serviceVmLb.loadBalancerIP) }}
+{{- if and (.Values.rabbitmq.serviceVmLb.enabled) (.Values.rabbitmq.serviceVmLb.loadBalancerIP) -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -29,6 +29,6 @@ spec:
     protocol: TCP
     targetPort: amqp
   selector:
-    app: rabbitmq
-    release: {{ .Release.Name }}
-{{- end }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: rabbitmq
+{{- end -}}

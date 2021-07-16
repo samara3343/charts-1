@@ -1,6 +1,110 @@
 # JFrog Distribution Chart Changelog
 All changes to this project chart be documented in this file.
 
+## [102.8.2] - July 12, 2021
+* Bumping chart version to align with app version
+
+## [102.8.1] - June 22, 2021
+* Bumping chart version to align with app version
+* **Breaking change:**
+* Update postgresql tag version to `13.2.0-debian-10-r55`
+* Update postgresql chart version to `10.3.18` in chart.yaml - [10.x Upgrade Notes](https://github.com/bitnami/charts/tree/master/bitnami/postgresql#to-1000)
+* If this is a new deployment or you already use an external database (`postgresql.enabled=false`), these changes **do not affect you**!
+* If this is an upgrade and you are using the default PostgreSQL (`postgresql.enabled=true`), you need to pass previous 9.x/10.x/12.x's postgresql.image.tag and databaseUpgradeReady=true
+* **IMPORTANT**
+* This chart is only helm v3 compatible
+* Removed distributor service
+* Increased CPU and memory limits for the Distribution service
+* Update redis version tag to `6.2.1-debian-10-r9`
+* Update router version to `7.19.8`
+* Fix broken support for startupProbe for k8s < 1.18.x
+* Added support for `nameOverride` and `fullnameOverride` in values.yaml
+* Added configurable `.Values.global.versions.router` in values.yaml
+
+## [7.7.1] - April 6, 2021
+* Update alpine tag version to `3.13.4`
+
+## [7.7.0] - Apr 5, 2021
+* **IMPORTANT**
+* Added `charts.jfrog.io` as default JFrog Helm repository
+
+## [7.6.1] - Mar 30, 2021
+* Update router version to `7.17.2`
+* Add `timeoutSeconds` to all exec probes - Please refer [here](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes)
+
+## [7.6.0] - Mar 22, 2021
+* Update Distribution to version `2.7.1`
+* Update router version to `7.17.1`
+* Add support for graceful shutdown
+* Optimized startupProbe time
+
+## [7.5.0] - Mar 18, 2021
+* Add support to startupProbe
+
+## [7.4.3] - Mar 9, 2021
+* Removed bintray URL references in the chart
+* Update router version to `7.15.3`
+
+## [7.4.2] - Feb 25, 2021
+* Update Distribution to version `2.6.1` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Distribution+Release+Notes#DistributionReleaseNotes-Distribution2.6.1)
+
+## [7.4.1] - Feb 19, 2021
+* Update router version to `7.15.2`
+* Update busybox tag version to `1.32.1`
+
+## [7.4.0] - Feb 08, 2021
+* Support for custom certificates using secrets 
+* **Important:** Switched docker images download from `docker.bintray.io` to `releases-docker.jfrog.io`
+* Update alpine tag version to `3.13.1`
+* Update router version to `7.12.6`
+
+## [7.3.2] - Jan 27, 2021
+* Update router version to `7.12.4`
+
+## [7.3.1] - Jan 25, 2021
+* Add support for hostAliases
+
+## [7.3.0] - Jan 13, 2021
+* Update Distribution to version `2.6.0` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Distribution+Release+Notes#DistributionReleaseNotes-Distribution2.6)
+
+## [7.2.3] - Jan 8, 2021
+* Add support for creating additional kubernetes resources
+
+## [7.2.2] - Dec 22, 2020
+* Update Distribution to version `2.5.4` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Distribution+Release+Notes#DistributionReleaseNotes-Distribution2.5)
+
+## [7.2.1] - Dec 11, 2020
+* Added configurable `.Values.global.versions.distribution` in values.yaml
+
+## [7.2.0] - Dec 10, 2020
+* Update postgresql tag version to `12.5.0-debian-10-r25`
+* Update redis tag version to `6.0.9-debian-10-r39`
+* Update alpine tag version to `3.12.1`
+
+## [7.1.7] - Dec 8, 2020
+* Update Distribution to version `2.5.3` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Distribution+Release+Notes#DistributionReleaseNotes-Distribution2.5)
+* Updated chart maintainers email
+
+## [7.1.6] - Dec 4, 2020
+* **Important:** Renamed `.Values.systemYaml` to `.Values.systemYamlOverride`
+
+## [7.1.5] - Dec 3, 2020
+* Updated port namings on services and pods to allow for istio protocol discovery
+
+## [7.1.4] - Nov 16, 2020
+* Update Distribution to version `2.5.2` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Distribution+Release+Notes#DistributionReleaseNotes-Distribution2.5.2)
+
+## [7.1.3] - Oct 29, 2020
+* Pass system.yaml via external secret for advanced usecases
+* Bugfix - stateful set not picking up changes to database secrets
+
+## [7.1.2] - Oct 23, 2020
+* Update router version to `1.4.4`
+
+## [7.1.1] - Oct 9, 2020
+* Update Distribution to version `2.5.1` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Distribution+Release+Notes#DistributionReleaseNotes-Distribution2.5.1)
+* Add support for customInitContainersBegin
+
 ## [7.1.0] - Sep 30, 2020
 * Update Distribution to version `2.5.0` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Distribution+Release+Notes#DistributionReleaseNotes-Distribution2.5)
 * Added support for resources in init containers

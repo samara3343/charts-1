@@ -18,19 +18,19 @@ This chart will do the following:
 
 ## Installing the Chart
 
-### Add ChartCenter Helm repository
+### Add JFrog Helm repository
 
-Before installing JFrog helm charts, you need to add the [ChartCenter helm repository](https://chartcenter.io) to your helm client.
+Before installing JFrog helm charts, you need to add the [JFrog helm repository](https://charts.jfrog.io) to your helm client.
 
 ```bash
-helm repo add center https://repo.chartcenter.io
+helm repo add jfrog https://charts.jfrog.io
 helm repo update
 ```
 
 ### Install Chart
 To install the chart with the release name `artifactory-oss`:
 ```bash
-helm upgrade --install artifactory-oss --set postgresql.postgresqlPassword=<postgres_password> --namespace artifactory-oss center/jfrog/artifactory-oss
+helm upgrade --install artifactory-oss --set artifactory.postgresql.postgresqlPassword=<postgres_password> --namespace artifactory-oss jfrog/artifactory-oss
 ```
 
 ### Accessing Artifactory OSS
@@ -39,17 +39,29 @@ helm upgrade --install artifactory-oss --set postgresql.postgresqlPassword=<post
 ### Updating Artifactory OSS
 Once you have a new chart version, you can upgrade your deployment with
 ```bash
-helm upgrade artifactory-oss center/jfrog/artifactory-oss
+helm upgrade artifactory-oss jfrog/artifactory-oss
 ```
+
+### Special Upgrade Notes
+#### Artifactory upgrade from 6.x to 7.x (App Version)
+Arifactory 6.x to 7.x upgrade requires a one time migration process. This is done automatically on pod startup if needed.
+It's possible to configure the migration timeout with the following configuration in extreme cases. The provided default should be more than enough for completion of the migration.
+```yaml
+artifactory:
+  artifactory:
+    # Migration support from 6.x to 7.x
+    migration:
+      enabled: true
+      timeoutSeconds: 3600
+```
+* Note: If you are upgrading from 1.x to 3.x and above chart versions, please delete the existing statefulset of postgresql before upgrading the chart due to breaking changes in postgresql subchart.
+```bash
+kubectl delete statefulsets <OLD_RELEASE_NAME>-postgresql
+```
+* For more details about artifactory chart upgrades refer [here](https://github.com/jfrog/charts/blob/master/stable/artifactory/UPGRADE_NOTES.md)
 
 ### Deleting Artifactory OSS
 
-On helm v2:
-```bash
-helm delete --purge artifactory-oss
-```
-
-On helm v3:
 ```bash                                                                                                                                                                 
 helm delete artifactory-oss --namespace artifactory-oss                                                                                                                                     
 ``` 
@@ -72,7 +84,7 @@ helm upgrade --install artifactory-oss \
   --set artifactory.ingress.enabled=true \
   --set artifactory.ingress.hosts[0]="artifactory.company.com" \
   --set artifactory.artifactory.service.type=NodePort \
-  --namespace artifactory-oss center/jfrog/artifactory-oss
+  --namespace artifactory-oss jfrog/artifactory-oss
 ```
 
 To manually configure TLS, first create/retrieve a key & certificate pair for the address(es) you wish to protect. Then create a TLS secret in the namespace:

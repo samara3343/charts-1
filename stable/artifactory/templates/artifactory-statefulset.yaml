@@ -12,13 +12,12 @@ metadata:
 {{ toYaml . | indent 4 }}
 {{- end }}
 {{- if and .Release.IsUpgrade .Values.postgresql.enabled }}
-    databaseUpgradeReady: {{ required "\n\n*********\nIMPORTANT: UPGRADE STOPPED to prevent data loss!\nReview CHANGELOG.md (https://github.com/jfrog/charts/blob/master/stable/artifactory/CHANGELOG.md), pass postgresql.image.tag '9.6.18-debian-10-r7' or '10.13.0-debian-10-r38' and databaseUpgradeReady=true if you are upgrading from chart version which has postgresql version 9.6.x or 10.13.x" .Values.databaseUpgradeReady | quote }}
+    databaseUpgradeReady: {{ required "\n\n*********\nIMPORTANT: UPGRADE STOPPED to prevent data loss!\nReview CHANGELOG.md (https://github.com/jfrog/charts/blob/master/stable/artifactory/CHANGELOG.md) \nNote: This applies only when you are using bundled postgresql (postgresql.enabled=true) \nIf you are upgrading from a chart version (< 11.x.x) that has postgresql.image.tag of 9.x or 10.x or 12.x, make sure to pass the current postgresql.image.tag and set databaseUpgradeReady=true \nOR \nIf you are upgrading from a chart version (>= 12.x), just set databaseUpgradeReady=true \n" .Values.databaseUpgradeReady | quote }}
 {{- end }}
 spec:
   serviceName: {{ template "artifactory.name" . }}
-  replicas: 1
-  updateStrategy:
-    type: RollingUpdate
+  replicas: {{ .Values.artifactory.replicaCount }}
+  updateStrategy: {{- toYaml .Values.artifactory.updateStrategy | nindent 4 }}
   selector:
     matchLabels:
       app: {{ template "artifactory.name" . }}
@@ -37,10 +36,14 @@ spec:
 {{ toYaml . | indent 8 }}
         {{- end }}
       annotations:
+        checksum/database-secrets: {{ include (print $.Template.BasePath "/artifactory-database-secrets.yaml") . | sha256sum }}
         checksum/binarystore: {{ include (print $.Template.BasePath "/artifactory-binarystore-secret.yaml") . | sha256sum }}
         checksum/systemyaml: {{ include (print $.Template.BasePath "/artifactory-system-yaml.yaml") . | sha256sum }}
       {{- if .Values.access.accessConfig }}
         checksum/access-config: {{ include (print $.Template.BasePath "/artifactory-access-config.yaml") . | sha256sum }}
+      {{- end }}
+      {{- if .Values.artifactory.persistence.googleStorage.gcpServiceAccount.enabled }}
+        checksum/gcpcredentials: {{ include (print $.Template.BasePath "/artifactory-gcp-credentials-secret.yaml") . | sha256sum }}
       {{- end }}
       {{- if not (and .Values.artifactory.admin.secret .Values.artifactory.admin.dataKey) }}
         checksum/admin-creds: {{ include (print $.Template.BasePath "/admin-bootstrap-creds.yaml") . | sha256sum }}
@@ -61,10 +64,15 @@ spec:
     {{- if or .Values.imagePullSecrets .Values.global.imagePullSecrets }}
 {{- include "artifactory.imagePullSecrets" . | indent 6 }}
     {{- end }}
+      {{- if .Values.artifactory.setSecurityContext }}
       securityContext:
         runAsUser: {{ .Values.artifactory.uid }}
-        fsGroup: {{ .Values.artifactory.uid }}
+        fsGroup: {{ .Values.artifactory.gid }}
+      {{- end }}
       initContainers:
+    {{- if or .Values.artifactory.customInitContainersBegin .Values.global.customInitContainersBegin }}
+{{ tpl (include "artifactory.customInitContainersBegin" .)  . | indent 6 }}
+    {{- end }}      
     {{- if .Values.artifactory.persistence.enabled }}
     {{- if .Values.artifactory.deleteDBPropertiesOnStartup }}
       - name: "delete-db-properties"
@@ -129,13 +137,17 @@ spec:
           echo "Copy system.yaml to {{ .Values.artifactory.persistence.mountPath }}/etc";
           mkdir -p {{ .Values.artifactory.persistence.mountPath }}/etc;
           mkdir -p {{ .Values.artifactory.persistence.mountPath }}/etc/access/keys/trusted;
+          {{- if .Values.systemYamlOverride.existingSecret }}
+          cp -fv /tmp/etc/{{ .Values.systemYamlOverride.dataKey }} {{ .Values.artifactory.persistence.mountPath }}/etc/system.yaml;
+          {{- else }}
           cp -fv /tmp/etc/system.yaml {{ .Values.artifactory.persistence.mountPath }}/etc/system.yaml;
+          {{- end }}
           echo "Remove {{ .Values.artifactory.persistence.mountPath }}/lost+found folder if exists";
           rm -rfv {{ .Values.artifactory.persistence.mountPath }}/lost+found;
         {{- if .Values.access.accessConfig }}
-          echo "Copy access.config.latest.yml to {{ .Values.artifactory.persistence.mountPath }}/etc";
+          echo "Copy access.config.patch.yml to {{ .Values.artifactory.persistence.mountPath }}/etc/access";
           mkdir -p {{ .Values.artifactory.persistence.mountPath }}/etc/access;
-          cp -fv /tmp/etc/access.config.import.yml {{ .Values.artifactory.persistence.mountPath }}/etc/access/access.config.import.yml;
+          cp -fv /tmp/etc/access.config.patch.yml {{ .Values.artifactory.persistence.mountPath }}/etc/access/access.config.patch.yml;
         {{- end }}
         {{- if .Values.access.resetAccessCAKeys }}
           echo "Resetting Access CA Keys";
@@ -176,13 +188,20 @@ spec:
         volumeMounts:
         - name: artifactory-volume
           mountPath: {{ .Values.artifactory.persistence.mountPath | quote }}
+      {{- if or .Values.systemYamlOverride.existingSecret .Values.artifactory.systemYaml }}
         - name: systemyaml
+          {{- if .Values.systemYamlOverride.existingSecret }}
+          mountPath: "/tmp/etc/{{.Values.systemYamlOverride.dataKey}}"
+          subPath: {{ .Values.systemYamlOverride.dataKey }}
+          {{- else if .Values.artifactory.systemYaml }}
           mountPath: "/tmp/etc/system.yaml"
           subPath: system.yaml
+          {{- end }}
+      {{- end }}
         {{- if .Values.access.accessConfig }}
         - name: access-config
-          mountPath: "/tmp/etc/access.config.import.yml"
-          subPath: access.config.import.yml
+          mountPath: "/tmp/etc/access.config.patch.yml"
+          subPath: access.config.patch.yml
         {{- end }}
         {{- if .Values.access.customCertificatesSecretName }}
         - name: access-certs
@@ -192,7 +211,7 @@ spec:
           mountPath: "/tmp/etc/tls.key"
           subPath: tls.key
         {{- end }}
-    {{- if .Values.artifactory.customPersistentPodVolumeClaim }}
+    {{- if and .Values.artifactory.customPersistentPodVolumeClaim (not .Values.artifactory.customPersistentPodVolumeClaim.skipPrepareContainer) }}
       - name: "prepare-custom-persistent-volume"
         image: "{{ .Values.initContainerImage }}"
         resources:
@@ -201,16 +220,30 @@ spec:
           - 'sh'
           - '-c'
           - >
-            echo "Setting ownership {{ .Values.artifactory.uid }}:{{ .Values.artifactory.uid }} on PVC {{ .Values.artifactory.customPersistentPodVolumeClaim.name }}"
-            chown -Rv {{ .Values.artifactory.uid }}:{{ .Values.artifactory.uid }} {{ .Values.artifactory.customPersistentPodVolumeClaim.mountPath }}
+            echo "Setting ownership {{ .Values.artifactory.uid }}:{{ .Values.artifactory.gid }} on PVC {{ .Values.artifactory.customPersistentPodVolumeClaim.name }}"
+            chown -Rv {{ .Values.artifactory.uid }}:{{ .Values.artifactory.gid }} {{ .Values.artifactory.customPersistentPodVolumeClaim.mountPath }}
         securityContext:
-          capabilities:
-            add:
-              - CHOWN
+          runAsUser: 0
         volumeMounts:
           - name: {{ .Values.artifactory.customPersistentPodVolumeClaim.name }}
             mountPath: {{ .Values.artifactory.customPersistentPodVolumeClaim.mountPath }}
     {{- end }}
+      {{- if or .Values.artifactory.customCertificates.enabled .Values.global.customCertificates.enabled }}
+      - name: copy-custom-certificates
+        image: "{{ .Values.initContainerImage }}"
+        resources:
+{{ toYaml .Values.initContainers.resources | indent 10 }}
+        command:
+        - 'sh'
+        - '-c'
+        - >
+{{ include "artifactory.copyCustomCerts" . | indent 10 }}
+        volumeMounts:
+          - name: artifactory-volume
+            mountPath: {{ .Values.artifactory.persistence.mountPath }}
+          - name: ca-certs
+            mountPath: "/tmp/certs"
+      {{- end }}
     {{- if .Values.waitForDatabase }}
       {{- if .Values.postgresql.enabled }}
       - name: "wait-for-db"
@@ -250,7 +283,7 @@ spec:
           cp -fv /tmp/migrationHelmInfo.yaml $scriptsPath/migrationHelmInfo.yaml;
           cp -fv /tmp/migrationStatus.sh $scriptsPath/migrationStatus.sh;
           mkdir -p {{ .Values.artifactory.persistence.mountPath }}/log;
-          bash $scriptsPath/migrationStatus.sh {{ default .Chart.AppVersion .Values.artifactory.image.tag }} {{ .Values.artifactory.migration.timeoutSeconds }} > >(tee {{ .Values.artifactory.persistence.mountPath }}/log/helm-migration.log) 2>&1;
+          bash $scriptsPath/migrationStatus.sh {{ include "artifactory.app.version" . }} {{ .Values.artifactory.migration.timeoutSeconds }} > >(tee {{ .Values.artifactory.persistence.mountPath }}/log/helm-migration.log) 2>&1;
         env:
       {{- if and (not .Values.waitForDatabase) (not .Values.postgresql.enabled) }}
         - name: SKIP_WAIT_FOR_EXTERNAL_DB
@@ -319,11 +352,20 @@ spec:
         - name: binarystore-xml
           mountPath: "/artifactory_bootstrap/binarystore.xml"
           subPath: binarystore.xml
+      {{- if .Values.artifactory.persistence.googleStorage.gcpServiceAccount.enabled }}
+        - name: gcpcreds-json
+          mountPath: "/artifactory_bootstrap/gcp.credentials.json"
+          subPath: gcp.credentials.json
+      {{- end }}
       {{- end }}
       {{- if or .Values.artifactory.customVolumeMounts .Values.global.customVolumeMounts }}
 {{ tpl (include "artifactory.customVolumeMounts" .) . | indent 8 }}
       {{- end }}
 {{- end }}
+      {{- if .Values.hostAliases }}
+      hostAliases:
+{{ toYaml .Values.hostAliases | indent 6 }}
+      {{- end }}
       containers:
       - name: {{ .Values.artifactory.name }}
         image: {{ include "artifactory.getImageInfoByValue" (list . "artifactory") }}
@@ -358,6 +400,7 @@ spec:
           {{ tpl .Values.artifactory.preStartCommand . }};
           {{- end }}
           exec /entrypoint-artifactory.sh
+        {{- with .Values.artifactory.postStartCommand }}  
         lifecycle:
           postStart:
             exec:
@@ -365,10 +408,9 @@ spec:
               - '/bin/bash'
               - '-c'
               - >
-                echo;
-              {{- with .Values.artifactory.postStartCommand }}
+                echo "Running custom postStartCommand command";
                 {{ tpl . $ }}
-              {{- end }}
+        {{- end }}
         env:
       {{- if and (not .Values.waitForDatabase) (not .Values.postgresql.enabled) }}
         - name: SKIP_WAIT_FOR_EXTERNAL_DB
@@ -418,12 +460,16 @@ spec:
 {{- end }}
         ports:
         - containerPort: {{ .Values.artifactory.internalPort }}
+          name: http
         - containerPort: {{ .Values.artifactory.internalArtifactoryPort }}
+          name: http-internal
         {{- if .Values.artifactory.javaOpts.jmx.enabled }}
         - containerPort: {{ .Values.artifactory.javaOpts.jmx.port }}
+          name: tcp-jmx
         {{- end }}
         {{- if .Values.artifactory.ssh.enabled }}
         - containerPort: {{ .Values.artifactory.ssh.internalPort }}
+          name: tcp-ssh
         {{- end }}
         volumeMounts:
       {{- if .Values.artifactory.userPluginSecrets }}
@@ -449,6 +495,11 @@ spec:
         - name: binarystore-xml
           mountPath: "/artifactory_bootstrap/binarystore.xml"
           subPath: binarystore.xml
+      {{- if .Values.artifactory.persistence.googleStorage.gcpServiceAccount.enabled }}
+        - name: gcpcreds-json
+          mountPath: "/artifactory_bootstrap/gcp.credentials.json"
+          subPath: gcp.credentials.json
+      {{- end }}
       {{- end }}
       {{- if or .Values.artifactory.license.secret .Values.artifactory.license.licenseKey }}
         - name: artifactory-license
@@ -467,13 +518,26 @@ spec:
       {{- end }}
         resources:
 {{ toYaml .Values.artifactory.resources | indent 10 }}
+      {{- if .Values.artifactory.startupProbe.enabled }}
+        startupProbe:
+          httpGet:
+            path: {{ .Values.artifactory.startupProbe.path }}
+            scheme: {{ include "artifactory.scheme" . | upper }}
+            port: {{ .Values.artifactory.internalPort }}
+          initialDelaySeconds: {{ .Values.artifactory.startupProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.artifactory.startupProbe.periodSeconds }}
+          failureThreshold: {{ .Values.artifactory.startupProbe.failureThreshold }}
+          timeoutSeconds: {{ .Values.artifactory.startupProbe.timeoutSeconds }}
+      {{- end }}
       {{- if .Values.artifactory.readinessProbe.enabled }}
         readinessProbe:
           httpGet:
             path: {{ .Values.artifactory.readinessProbe.path }}
             scheme: {{ include "artifactory.scheme" . | upper }}
             port: {{ .Values.artifactory.internalPort }}
+        {{- if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}
           initialDelaySeconds: {{ .Values.artifactory.readinessProbe.initialDelaySeconds }}
+        {{- end }}
           periodSeconds: {{ .Values.artifactory.readinessProbe.periodSeconds }}
           timeoutSeconds: {{ .Values.artifactory.readinessProbe.timeoutSeconds }}
           failureThreshold: {{ .Values.artifactory.readinessProbe.failureThreshold }}
@@ -485,7 +549,9 @@ spec:
             path: {{ .Values.artifactory.livenessProbe.path }}
             scheme: {{ include "artifactory.scheme" . | upper }}
             port: {{ .Values.artifactory.internalPort }}
+        {{- if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}
           initialDelaySeconds: {{ .Values.artifactory.livenessProbe.initialDelaySeconds }}
+        {{- end }}
           periodSeconds: {{ .Values.artifactory.livenessProbe.periodSeconds }}
           timeoutSeconds: {{ .Values.artifactory.livenessProbe.timeoutSeconds }}
           failureThreshold: {{ .Values.artifactory.livenessProbe.failureThreshold }}
@@ -567,6 +633,11 @@ spec:
 {{ toYaml . | indent 8 }}
     {{- end }}
       volumes:
+      {{- if or .Values.artifactory.customCertificates.enabled .Values.global.customCertificates.enabled }}
+      - name: ca-certs
+        secret:
+          secretName: {{ default .Values.global.customCertificates.certificateSecretName .Values.artifactory.customCertificates.certificateSecretName }}
+      {{- end }}   
       - name: binarystore-xml
         secret:
           {{- if .Values.artifactory.persistence.customBinarystoreXmlSecret }}
@@ -611,6 +682,15 @@ spec:
         configMap:
           name: {{ template "artifactory.fullname" . }}-configmaps
       {{- end }}
+      {{- if .Values.artifactory.persistence.googleStorage.gcpServiceAccount.enabled }}
+      - name: gcpcreds-json
+        secret:
+          {{- if .Values.artifactory.persistence.googleStorage.gcpServiceAccount.customSecretName }}
+          secretName: {{ .Values.artifactory.persistence.googleStorage.gcpServiceAccount.customSecretName }}
+          {{- else }}
+          secretName: {{ template "artifactory.fullname" . }}-gcpcreds
+          {{- end }}
+      {{- end }}
       {{- if or .Values.artifactory.license.secret .Values.artifactory.license.licenseKey }}
       - name: artifactory-license
         secret:
@@ -642,9 +722,11 @@ spec:
         emptyDir:
           sizeLimit: {{ .Values.artifactory.persistence.size }}
       {{- end }}
+      {{- if or .Values.systemYamlOverride.existingSecret .Values.artifactory.systemYaml }}
       - name: systemyaml
         secret:
-          secretName: {{ template "artifactory.fullname" . }}-systemyaml
+          secretName: {{ default (printf "%s-%s" (include "artifactory.fullname" .) "systemyaml") .Values.systemYamlOverride.existingSecret }}
+      {{- end }}
       {{- if .Values.access.accessConfig }}
       - name: access-config
         secret:
@@ -663,7 +745,7 @@ spec:
   {{- if .Values.filebeat.enabled }}
       - name: filebeat-config
         configMap:
-          name: {{ template "artifactory.name" . }}-filebeat-config
+          name: {{ template "artifactory.fullname" . }}-filebeat-config
   {{- end }}
     {{- if or .Values.artifactory.customVolumes .Values.global.customVolumes }}
 {{ tpl (include "artifactory.customVolumes" .) . | indent 6 }}

@@ -23,12 +23,12 @@ This chart will do the following:
 
 ### Install Chart
 
-### Add ChartCenter Helm repository
+### Add JFrog Helm repository
 
-Before installing JFrog helm charts, you need to add the [ChartCenter helm repository](https://chartcenter.io) to your helm client.
+Before installing JFrog helm charts, you need to add the [JFrog helm repository](https://charts.jfrog.io) to your helm client.
 
 ```bash
-helm repo add center https://repo.chartcenter.io
+helm repo add jfrog https://charts.jfrog.io
 helm repo update
 ```
 
@@ -48,7 +48,7 @@ Provide join key and jfrog url as a parameter to the Mission Control chart insta
 
 ```bash
 helm upgrade --install mission-control --set missionControl.joinKey=<YOUR_PREVIOUSLY_RETIREVED_JOIN_KEY> \
-             --set missionControl.jfrogUrl=<YOUR_PREVIOUSLY_RETIREVED_BASE_URL> --namespace mission-control center/jfrog/mission-control
+             --set missionControl.jfrogUrl=<YOUR_PREVIOUSLY_RETIREVED_BASE_URL> --namespace mission-control jfrog/mission-control
 ```
 Alternatively, you can create a secret containing the join key manually and pass it to the template at install/upgrade time.
 ```bash
@@ -57,12 +57,16 @@ Alternatively, you can create a secret containing the join key manually and pass
 kubectl create secret generic my-secret --from-literal=join-key=<YOUR_PREVIOUSLY_RETIREVED_JOIN_KEY>
 
 # Pass the created secret to helm
-helm upgrade --install mission-control --set missionControl.joinKeySecretName=my-secret --namespace mission-control center/jfrog/mission-control
+helm upgrade --install mission-control --set missionControl.joinKeySecretName=my-secret --namespace mission-control jfrog/mission-control
 ```
 **NOTE:** In either case, make sure to pass the same join key on all future calls to `helm install` and `helm upgrade`! This means always passing `--set missionControl.joinKey=<YOUR_PREVIOUSLY_RETIREVED_JOIN_KEY>`. In the second, this means always passing `--set missionControl.joinKeySecretName=my-secret` and ensuring the contents of the secret remain unchanged.
 
 ### Special Upgrade Notes
 Mission-control 3.x to 4.x (App Version) upgrade is not currently supported. For manual upgrade, please refer [here](https://github.com/jfrog/charts/blob/master/stable/mission-control/UPGRADE_NOTES.md). If this is an upgrade over an existing Mission Control 4.x, explicitly pass `--set unifiedUpgradeAllowed=true` to upgrade.
+
+#### Upgrading mission-control to 5.2.x and above chart versions in HA setup (replicaCount > 1)
+From 5.2.x chart version and above, elasticsearch was updated with serach guard plugin. Due to this change, rolling updates would break for elastic search.
+Please set `replicaCount: 1` and do an helm upgrade. (Downtime is required)
 
 ### System Configuration
 Mission Control uses a common system configuration file - `system.yaml`. See [official documentation](https://www.jfrog.com/confluence/display/JFROG/System+YAML+Configuration+File) on its usage.
@@ -107,7 +111,7 @@ export MASTER_KEY=$(openssl rand -hex 32)
 echo ${MASTER_KEY}
 
 # Pass the created master key to helm
-helm upgrade --install mission-control --set missionControl.masterKey=${MASTER_KEY} --namespace mission-control center/jfrog/mission-control
+helm upgrade --install mission-control --set missionControl.masterKey=${MASTER_KEY} --namespace mission-control jfrog/mission-control
 ```
 
 Alternatively, you can create a secret containing the master key manually and pass it to the template at install/upgrade time.
@@ -117,7 +121,7 @@ Alternatively, you can create a secret containing the master key manually and pa
 kubectl create secret generic my-secret --from-literal=master-key=${MASTER_KEY}
 
 # Pass the created secret to helm
-helm upgrade --install mission-control --namespace mission-control --set missionControl.masterKeySecretName=my-secret center/jfrog/mission-control
+helm upgrade --install mission-control --namespace mission-control --set missionControl.masterKeySecretName=my-secret jfrog/mission-control
 ```
 **NOTE:** In either case, make sure to pass the same master key on all future calls to `helm install` and `helm upgrade`! In the first case, this means always passing `--set missionControl.masterKey=${MASTER_KEY}`. In the second, this means always passing `--set missionControl.masterKeySecretName=my-secret` and ensuring the contents of the secret remain unchanged.
 
@@ -125,7 +129,7 @@ helm upgrade --install mission-control --namespace mission-control --set mission
 ## Upgrade
 Once you have a new chart version, you can update your deployment with
 ```
-helm upgrade mission-control center/jfrog/mission-control
+helm upgrade mission-control jfrog/mission-control
 ```
 
 **NOTE:** Check for any version specific upgrade notes in [CHANGELOG.md]
@@ -239,6 +243,23 @@ This can be done with the following parameters
 ...
 ```
 
+#### Elasticsearch with custom tls-certificates
+
+By default the internal elasticsearch uses the bundled tls-certificates for configuring searchguard. For production deployments it is recommended to use you own certificates.
+Custom certificates can be added by using kubernetes secret. The secret should be created outside of this chart and provided using the tag `.Values.elasticsearch.certificatesSecretName`. Please refer the example below.
+
+```bash
+kubectl create secret generic elastic-certs --from-file=localhost.key=localhost.key --from-file=localhost.pem=localhost.pem --from-file=sgadmin.key=sgadmin.key --from-file=sgadmin.pem=sgadmin.pem --from-file=root-ca.pem=root-ca.pem
+```
+Refer- https://docs.search-guard.com/latest/offline-tls-tool for creating certificates
+
+And then pass it to the helm installation
+```yaml
+elasticsearch:
+  certificatesSecretName: elastic-certs
+```
+**NOTE:** If the certificates are changed, rolling update is not possible. Scale down the deployment to one replica and do an helm upgrade
+
 ### Logger sidecars
 This chart provides the option to add sidecars to tail various logs from Mission Control containers. See the available values in `values.yaml`
 
@@ -266,36 +287,26 @@ common:
 ### Establishing TLS and Adding certificates
 Create trust between the nodes by copying the ca.crt from the Artifactory server under $JFROG_HOME/artifactory/var/etc/access/keys to of the nodes you would like to set trust with under $JFROG_HOME/<product>/var/etc/security/keys/trusted. For more details, Please refer [here](https://www.jfrog.com/confluence/display/JFROG/Managing+TLS+Certificates).
 
+Note: Support for custom certificates using secrets was added from 5.5.x chart versions 
 
-To add this certificate to mission control, Create a configmaps.yaml file with the following content:
+Tls certificates can be added by using kubernetes secret. The secret should be created outside of this chart and provided using the tag `.Values.missionControl.customCertificates.certificateSecretName`. Please refer the example below.
+
+```bash
+kubectl create secret generic ca-cert --from-file=ca.crt=ca.crt
+```
+
+And then pass it to the helm installation
 
 ```yaml
-common:
-  configMaps: |
-    ca.crt: |
-      -----BEGIN CERTIFICATE-----
-        <certificate content>
-      -----END CERTIFICATE-----
-  customVolumeMounts: |
-    - name: mission-control-configmaps
-      mountPath: /tmp/ca.crt
-      subPath: ca.crt
 missionControl:
-  preStartCommand: "mkdir -p {{ .Values.missionControl.persistence.mountPath }}/etc/security/keys/trusted && cp -fv /tmp/ca.crt {{ .Values.missionControl.persistence.mountPath }}/etc/security/keys/trusted/ca.crt"
+  customCertificates:
+    enabled: true
+    certificateSecretName: ca-cert
 router:
   tlsEnabled: true  
 ```
 
-and use it with your helm install/upgrade:
-```bash
-helm upgrade --install mission-control -f configmaps.yaml --namespace mission-control center/jfrog/xray
-```
-
-This will, in turn:
-* Create a configMap with the files you specified above
-* Create a volume pointing to the configMap with the name `mission-control-configmaps`
-* Mount said configMap onto `/tmp` using a `customVolumeMounts`
-* Using preStartCommand copy the `ca.crt` file to distribution trusted keys folder `/etc/security/keys/trusted/ca.crt`
+Note:
 * `router.tlsEnabled` is set to true to add HTTPS scheme in liveness and readiness probes.
 
 ### Custom volumes

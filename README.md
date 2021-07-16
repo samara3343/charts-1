@@ -6,16 +6,16 @@ For older version please refer to https://github.com/jfrog/charts/tree/pre-unifi
 
 ## Install Helm
 
-Get the latest [Helm release](https://github.com/kubernetes/helm#install).
+Get the latest [Helm release](https://github.com/helm/helm#install).
 
 ## Install Charts
 
-### Add ChartCenter Helm repository
+### Add JFrog Helm repository
 
-Before installing JFrog helm charts, you need to add the [ChartCenter helm repository](https://chartcenter.io) to your helm client.
+Before installing JFrog helm charts, you need to add the [JFrog helm repository](https://charts.jfrog.io) to your helm client.
 
 ```bash
-helm repo add center https://repo.chartcenter.io
+helm repo add jfrog https://charts.jfrog.io
 helm repo update
 ```
 

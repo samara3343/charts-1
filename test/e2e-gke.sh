@@ -24,14 +24,14 @@ run_ct_container() {
     docker run --rm --interactive --detach --name ct \
         --volume "$REPO_ROOT/gcloud-service-key.json:/gcloud-service-key.json" \
         --volume "$REPO_ROOT:/workdir" \
-        "$TEST_IMAGE:$TEST_IMAGE_TAG" \
+        "$CHART_TESTING_IMAGE:$CHART_TESTING_TAG" \
         cat
     echo
 }
 
 connect_to_cluster() {
     docker_exec gcloud auth activate-service-account --key-file /gcloud-service-key.json
-    docker_exec gcloud container clusters get-credentials "$CLUSTER_NAME" --project "$PROJECT_NAME" --zone "$CLOUDSDK_COMPUTE_ZONE"
+    docker_exec gcloud container clusters get-credentials "$CLUSTER_NAME" --project "$PROJECT_NAME" --region "$CLOUDSDK_COMPUTE_REGION"
 }
 
 main() {

@@ -148,10 +148,8 @@ Create rabbitmq URL
 {{- define "rabbitmq.url" -}}
 {{- if index .Values "rabbitmq" "enabled" -}}
 {{- $rabbitmqPort := .Values.rabbitmq.service.port -}}
-{{- printf "%s://%s-%s:%g/" "amqp" .Release.Name "rabbitmq" $rabbitmqPort -}}
-{{- else if index .Values "rabbitmq-ha" "enabled" -}}
-{{- $rabbitmqHaPort := index .Values "rabbitmq-ha" "rabbitmqNodePort" -}}
-{{- printf "%s://%s-%s:%g/" "amqp" .Release.Name "rabbitmq-ha" $rabbitmqHaPort -}}
+{{- $name := default (printf "%s" "rabbitmq") .Values.rabbitmq.nameOverride -}}
+{{- printf "%s://%s-%s:%g/" "amqp" .Release.Name $name $rabbitmqPort -}}
 {{- end -}}
 {{- end -}}
 
@@ -162,8 +160,6 @@ Create rabbitmq username
 {{- define "rabbitmq.user" -}}
 {{- if index .Values "rabbitmq" "enabled" -}}
 {{- .Values.rabbitmq.auth.username -}}
-{{- else if index .Values "rabbitmq-ha" "enabled" -}}
-{{- index .Values "rabbitmq-ha" "rabbitmqUsername" -}}
 {{- end -}} 
 {{- end -}}
 
@@ -173,9 +169,8 @@ Create rabbitmq password secret name
 */}}
 {{- define "rabbitmq.passwordSecretName" -}}
 {{- if index .Values "rabbitmq" "enabled" -}}
-{{- .Values.rabbitmq.auth.existingPasswordSecret | default (printf "%s-%s" .Release.Name "rabbitmq") -}}
-{{- else if index .Values "rabbitmq-ha" "enabled" -}}
-{{- index .Values "rabbitmq-ha" "existingSecret" | default (printf "%s-%s" .Release.Name "rabbitmq-ha") -}}
+{{- $name := default (printf "%s" "rabbitmq") .Values.rabbitmq.nameOverride -}}
+{{- .Values.rabbitmq.auth.existingPasswordSecret | default (printf "%s-%s" .Release.Name $name) -}}
 {{- end -}} 
 {{- end -}}
 
@@ -267,6 +262,17 @@ imagePullSecrets:
 {{- end -}}
 
 {{/*
+Resolve customInitContainersBegin value
+*/}}
+{{- define "xray.customInitContainersBegin" -}}
+{{- if .Values.global.customInitContainersBegin -}}
+{{- .Values.global.customInitContainersBegin -}}
+{{- else if .Values.common.customInitContainersBegin -}}
+{{- .Values.common.customInitContainersBegin -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Resolve customInitContainers value
 */}}
 {{- define "xray.customInitContainers" -}}
@@ -319,13 +325,17 @@ Return the proper xray chart image names
 {{- $indexReference := index . 1 }}
 {{- $registryName := index $dot.Values $indexReference "image" "registry" -}}
 {{- $repositoryName := index $dot.Values $indexReference "image" "repository" -}}
-{{- $tag := default (default $dot.Chart.AppVersion $dot.Values.common.xrayVersion (index $dot.Values $indexReference "image" "tag"))  | toString -}}
-{{/*
-Helm 2.11 supports the assignment of a value to a variable defined in a different scope,
-but Helm 2.9 and 2.10 doesn't support it, so we need to implement this if-else logic.
-Also, we can't use a single if because lazy evaluation is not an option
-*/}}
+{{- $tag := default $dot.Chart.AppVersion (index $dot.Values $indexReference "image" "tag") | toString -}}
+{{- if and $dot.Values.common.xrayVersion (or (eq $indexReference "persist") (eq $indexReference "server") (eq $indexReference "analysis") (eq $indexReference "indexer")) }}
+{{- $tag = $dot.Values.common.xrayVersion | toString -}}
+{{- end -}}
 {{- if $dot.Values.global }}
+    {{- if and $dot.Values.global.versions.router (eq $indexReference "router") }}
+    {{- $tag = $dot.Values.global.versions.router | toString -}}
+    {{- end -}}
+    {{- if and $dot.Values.global.versions.xray (or (eq $indexReference "persist") (eq $indexReference "server") (eq $indexReference "analysis") (eq $indexReference "indexer")) }}
+    {{- $tag = $dot.Values.global.versions.xray | toString -}}
+    {{- end -}}
     {{- if $dot.Values.global.imageRegistry }}
         {{- printf "%s/%s:%s" $dot.Values.global.imageRegistry $repositoryName $tag -}}
     {{- else -}}
@@ -337,26 +347,11 @@ Also, we can't use a single if because lazy evaluation is not an option
 {{- end -}}
 
 {{/*
-Return the proper xray router image name
+Custom certificate copy command
 */}}
-{{- define "router.getImageInfoByValue" -}}
-{{- $dot := index . 0 }}
-{{- $indexReference := index . 1 }}
-{{- $registryName := index $dot.Values $indexReference "image" "registry" -}}
-{{- $repositoryName := index $dot.Values $indexReference "image" "repository" -}}
-{{- $tag := index $dot.Values $indexReference "image" "tag" | toString -}}
-{{/*
-Helm 2.11 supports the assignment of a value to a variable defined in a different scope,
-but Helm 2.9 and 2.10 doesn't support it, so we need to implement this if-else logic.
-Also, we can't use a single if because lazy evaluation is not an option
-*/}}
-{{- if $dot.Values.global }}
-    {{- if $dot.Values.global.imageRegistry }}
-        {{- printf "%s/%s:%s" $dot.Values.global.imageRegistry $repositoryName $tag -}}
-    {{- else -}}
-        {{- printf "%s/%s:%s" $registryName $repositoryName $tag -}}
-    {{- end -}}
-{{- else -}}
-    {{- printf "%s/%s:%s" $registryName $repositoryName $tag -}}
-{{- end -}}
+{{- define "xray.copyCustomCerts" -}}
+echo "Copy custom certificates to {{ .Values.xray.persistence.mountPath }}/etc/security/keys/trusted";
+mkdir -p {{ .Values.xray.persistence.mountPath }}/etc/security/keys/trusted;
+find /tmp/certs -type f -not -name "*.key" -exec cp -v {} {{ .Values.xray.persistence.mountPath }}/etc/security/keys/trusted \;;
+find {{ .Values.xray.persistence.mountPath }}/etc/security/keys/trusted/ -type f -name "tls.crt" -exec mv -v {} {{ .Values.xray.persistence.mountPath }}/etc/security/keys/trusted/ca.crt \;;
 {{- end -}}

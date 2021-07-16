@@ -3,16 +3,15 @@
 unifiedUpgradeAllowed: true
 databaseUpgradeReady: true
 xray:
-  jfrogUrl: http://artifactory-artifactory.rt:8082
+  jfrogUrl: http://artifactory.rt:8082
 
 postgresql:
   postgresqlPassword: xray
 
-rabbitmq-ha:
-  rabbitmqUsername: guest
-  rabbitmqPassword: guest
-  persistentVolume:
-    enabled: false
+rabbitmq:
+  auth:
+    username: guest
+    password: password
 
 initContainers:
   resources:
@@ -22,3 +21,9 @@ initContainers:
     limits:
       memory: "128Mi"
       cpu: "250m"
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70

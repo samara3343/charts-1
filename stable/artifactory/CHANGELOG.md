@@ -1,6 +1,198 @@
 # JFrog Artifactory Chart Changelog
 All changes to this chart will be documented in this file.
 
+## [107.21.7] - July 15, 2021
+* Updated Artifactory version to 7.21.7
+
+## [107.21.5] - July 9, 2021
+* Updated Artifactory version to 7.21.5
+
+## [107.21.3] - July 1, 2021
+* Added ability to change sendreasonphrase value in server.xml via system yaml
+
+## [107.19.9] - June 23, 2021
+* Bumping chart version to align with app version
+
+## [107.19.3] - May 20, 2021
+* Fix broken support for startupProbe for k8s < 1.18.x
+* Added support for `nameOverride` and `fullnameOverride` in values.yaml
+
+## [107.18.6] - April 29, 2021
+* Bumping chart version to align with app version
+* Add `securityContext` option on nginx container
+
+## [12.0.0] - April 22, 2021
+* **Breaking change:**
+* Increased default postgresql persistence  size to `200Gi` 
+* Update postgresql tag version to `13.2.0-debian-10-r55`
+* Update postgresql chart version to `10.3.18` in chart.yaml - [10.x Upgrade Notes](https://github.com/bitnami/charts/tree/master/bitnami/postgresql#to-1000)
+* If this is a new deployment or you already use an external database (`postgresql.enabled=false`), these changes **do not affect you**!
+* If this is an upgrade and you are using the default PostgreSQL (`postgresql.enabled=true`), you need to pass previous 9.x/10.x/12.x's postgresql.image.tag, previous postgresql.persistence.size and databaseUpgradeReady=true
+* **IMPORTANT**
+* This chart is only helm v3 compatible.
+* Fixed filebeat-configmap naming
+* Explicitly set ServiceAccount `automountServiceAccountToken` to 'true'
+* Update alpine tag version to `3.13.5`
+
+## [11.13.2] - April 15, 2021
+* Updated Artifactory version to 7.17.9 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.17.9)
+
+## [11.13.1] - April 6, 2021
+* Updated Artifactory version to 7.17.6 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.17.6)
+* Update alpine tag version to `3.13.4`
+
+## [11.13.0] - April 5, 2021
+* **IMPORTANT**
+* Added `charts.jfrog.io` as default JFrog Helm repository
+* Updated Artifactory version to 7.17.5 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.17.5)
+
+## [11.12.2] - Mar 31, 2021
+* Updated Artifactory version to 7.17.4 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.17.4)
+
+## [11.12.1] - Mar 30, 2021
+* Updated Artifactory version to 7.17.3
+* Add `timeoutSeconds` to all exec probes - Please refer [here](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes)
+
+## [11.12.0] - Mar 24, 2021
+* Updated Artifactory version to 7.17.2
+* Optimized startupProbe time
+
+## [11.11.0] - Mar 18, 2021
+* Add support to startupProbe
+
+## [11.10.0] - Mar 15, 2021
+* Updated Artifactory version to 7.16.3
+
+## [11.9.5] - Mar 09, 2021
+* Added HSTS header to nginx conf
+
+## [11.9.4] - Mar 9, 2021
+* Removed bintray URL references in the chart
+
+## [11.9.3] - Mar 04, 2021
+* Updated Artifactory version to 7.15.4 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.15.4)
+
+## [11.9.2] - Mar 04, 2021
+* Fixed creation of nginx-certificate-secret when Nginx is disabled
+
+## [11.9.1] - Feb 19, 2021
+* Update busybox tag version to `1.32.1`
+
+## [11.9.0] - Feb 18, 2021
+* Updated Artifactory version to 7.15.3 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.15.3)
+* Add option to specify update strategy for Artifactory statefulset
+
+## [11.8.1] - Feb 11, 2021
+* Exposed "multiPartLimit" and "multipartElementSize" for the Azure Blob Storage Binary Provider
+
+## [11.8.0] - Feb 08, 2021
+* Updated Artifactory version to 7.12.8 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.12.8)
+* Support for custom certificates using secrets
+* **Important:** Switched docker images download from `docker.bintray.io` to `releases-docker.jfrog.io`
+* Update alpine tag version to `3.13.1`
+
+## [11.7.8] - Jan 25, 2021
+* Add support for hostAliases
+
+## [11.7.7] - Jan 11, 2021
+* Fix failures when using creds file for configurating google storage
+
+## [11.7.6] - Jan 11, 2021
+* Updated Artifactory version to 7.12.6 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.12.6)
+
+## [11.7.5] - Jan 07, 2021
+* Added support for optional tracker dedicated ingress `.Values.artifactory.replicator.trackerIngress.enabled` (defaults to false)
+
+## [11.7.4] - Jan 04, 2021
+* Fixed gid support for statefulset
+
+## [11.7.3] - Dec 31, 2020
+* Added gid support for statefulset
+* Add setSecurityContext flag to allow securityContext block to be removed from artifactory statefulset
+
+## [11.7.2] - Dec 29, 2020
+* **Important:** Removed `.Values.metrics` and `.Values.fluentd` (Fluentd and Prometheus integrations)
+* Add support for creating additional kubernetes resources - [refer here](https://github.com/jfrog/log-analytics-prometheus/blob/master/artifactory-values.yaml)
+* Updated Artifactory version to 7.12.5
+
+## [11.7.1] - Dec 21, 2020
+* Updated Artifactory version to 7.12.3
+
+## [11.7.0] - Dec 18, 2020
+* Updated Artifactory version to 7.12.2
+* Added `.Values.artifactory.openMetrics.enabled`
+
+## [11.6.1] - Dec 11, 2020
+* Added configurable `.Values.global.versions.artifactory` in values.yaml
+
+## [11.6.0] - Dec 10, 2020
+* Update postgresql tag version to `12.5.0-debian-10-r25`
+* Fixed `artifactory.persistence.googleStorage.endpoint` from `storage.googleapis.com` to `commondatastorage.googleapis.com`
+* Updated chart maintainers email
+
+## [11.5.5] - Dec 4, 2020
+* **Important:** Renamed `.Values.systemYaml` to `.Values.systemYamlOverride`
+
+## [11.5.4] - Dec 1, 2020
+* Improve error message returned when attempting helm upgrade command
+
+## [11.5.3] - Nov 30, 2020
+* Updated Artifactory version to 7.11.5 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.11)
+
+## [11.5.2] - Nov 23, 2020
+* Updated Artifactory version to 7.11.2 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.11)
+* Updated port namings on services and pods to allow for istio protocol discovery
+* Change semverCompare checks to support hosted Kubernetes
+* Add flag to disable creation of ServiceMonitor when enabling prometheus metrics
+* Prevent the PostHook command to be executed if the user did not specify a command in the values file
+* Fix issue with tls file generation when nginx.https.enabled is false
+
+## [11.5.1] - Nov 19, 2020
+* Updated Artifactory version to 7.11.2
+* Bugfix - access.config.import.xml override Access Federation configurations
+
+## [11.5.0] - Nov 17, 2020
+* Updated Artifactory version to 7.11.1
+* Update alpine tag version to `3.12.1`
+
+## [11.4.6] - Nov 10, 2020
+* Pass system.yaml via external secret for advanced usecases
+* Added support for custom ingress
+* Bugfix - stateful set not picking up changes to database secrets
+
+## [11.4.5] - Nov 9, 2020
+* Updated Artifactory version to 7.10.6 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.10.6)
+
+## [11.4.4] - Nov 2, 2020
+* Add enablePathStyleAccess property for aws-s3-v3 binary provider template
+
+## [11.4.3] - Nov 2, 2020
+* Updated Artifactory version to 7.10.5 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.10.5)
+
+## [11.4.2] - Oct 22, 2020
+* Chown bug fix where Linux capability cannot chown all files causing log line warnings
+* Fix Frontend timeout linting issue
+
+## [11.4.1] - Oct 20, 2020
+* Add flag to disable prepare-custom-persistent-volume init container
+
+## [11.4.0] - Oct 19, 2020
+* Updated Artifactory version to 7.10.2 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.10.2)
+
+## [11.3.2] - Oct 15, 2020
+* Add support to specify priorityClassName for nginx deployment
+
+## [11.3.1] - Oct 9, 2020
+* Add support for customInitContainersBegin
+
+## [11.3.0] - Oct 7, 2020
+* Updated Artifactory version to 7.9.1
+* **Breaking change:** Fix `storageClass` to correct `storageClassName` in values.yaml
+
+## [11.2.0] - Oct 5, 2020
+* Expose Prometheus metrics via a ServiceMonitor
+* Parse log files for metric data with Fluentd
+
 ## [11.1.0] - Sep 30, 2020
 * Updated Artifactory version to 7.9.0 - [Release Notes](https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes#ArtifactoryReleaseNotes-Artifactory7.9)
 * Added support for resources in init container

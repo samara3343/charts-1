@@ -14,8 +14,7 @@ metadata:
 spec:
   serviceName: {{ template "artifactory-ha.node.name" . }}
   replicas: {{ .Values.artifactory.node.replicaCount }}
-  updateStrategy:
-    type: RollingUpdate
+  updateStrategy: {{- toYaml .Values.artifactory.node.updateStrategy | nindent 4}}
   selector:
     matchLabels:
       app: {{ template "artifactory-ha.name" . }}
@@ -34,6 +33,7 @@ spec:
 {{ toYaml . | indent 8 }}
         {{- end }}
       annotations:
+        checksum/database-secrets: {{ include (print $.Template.BasePath "/artifactory-database-secrets.yaml") . | sha256sum }}
         checksum/binarystore: {{ include (print $.Template.BasePath "/artifactory-binarystore-secret.yaml") . | sha256sum }}
         checksum/systemyaml: {{ include (print $.Template.BasePath "/artifactory-system-yaml.yaml") . | sha256sum }}
       {{- if .Values.artifactory.persistence.googleStorage.gcpServiceAccount.enabled }}
@@ -55,12 +55,14 @@ spec:
     {{- if or .Values.imagePullSecrets .Values.global.imagePullSecrets }}
 {{- include "artifactory-ha.imagePullSecrets" . | indent 6 }}
     {{- end }}
+      {{- if .Values.artifactory.setSecurityContext }}
       securityContext:
         runAsUser: {{ .Values.artifactory.uid }}
-        fsGroup: {{ .Values.artifactory.uid }}
+        fsGroup: {{ .Values.artifactory.gid }}
+      {{- end }}
       initContainers:
-    {{- if .Values.artifactory.customInitContainersBegin }}
-{{ tpl .Values.artifactory.customInitContainersBegin . | indent 6 }}
+    {{- if or .Values.artifactory.customInitContainersBegin .Values.global.customInitContainersBegin }}
+{{ tpl (include "artifactory-ha.customInitContainersBegin" .)  . | indent 6 }}
     {{- end }}
   {{- if .Values.artifactory.persistence.enabled }}
     {{- if eq .Values.artifactory.persistence.type "file-system" }}
@@ -125,7 +127,11 @@ spec:
           echo "Copy system.yaml to {{ .Values.artifactory.persistence.mountPath }}/etc";
           mkdir -p {{ .Values.artifactory.persistence.mountPath }}/etc;
           mkdir -p {{ .Values.artifactory.persistence.mountPath }}/etc/access/keys/trusted;
+          {{- if .Values.systemYamlOverride.existingSecret }}
+          cp -fv /tmp/etc/{{ .Values.systemYamlOverride.dataKey }} {{ .Values.artifactory.persistence.mountPath }}/etc/system.yaml;
+          {{- else }}          
           cp -fv /tmp/etc/system.yaml {{ .Values.artifactory.persistence.mountPath }}/etc/system.yaml;
+          {{- end }}
           echo "Remove {{ .Values.artifactory.persistence.mountPath }}/lost+found folder if exists";
           rm -rfv {{ .Values.artifactory.persistence.mountPath }}/lost+found;
           echo "Removing join.key file";
@@ -152,27 +158,48 @@ spec:
         volumeMounts:
         - name: volume
           mountPath: {{ .Values.artifactory.persistence.mountPath | quote }}
+      {{- if or .Values.systemYamlOverride.existingSecret .Values.artifactory.systemYaml }}  
         - name: systemyaml
+          {{- if .Values.systemYamlOverride.existingSecret }}
+          mountPath: "/tmp/etc/{{.Values.systemYamlOverride.dataKey}}"
+          subPath: {{ .Values.systemYamlOverride.dataKey }}
+          {{- else if .Values.artifactory.systemYaml }}
           mountPath: "/tmp/etc/system.yaml"
           subPath: system.yaml
-    {{- if .Values.artifactory.customPersistentPodVolumeClaim }}
+          {{- end }}
+      {{- end }}
+    {{- if and .Values.artifactory.customPersistentPodVolumeClaim (not .Values.artifactory.customPersistentPodVolumeClaim.skipPrepareContainer) }}
       - name: "prepare-custom-persistent-volume"
         image: "{{ .Values.initContainerImage }}"
         command:
           - 'sh'
           - '-c'
           - >
-            chown -Rv {{ .Values.artifactory.uid }}:{{ .Values.artifactory.uid }} {{ .Values.artifactory.customPersistentPodVolumeClaim.mountPath }}
+            chown -Rv {{ .Values.artifactory.uid }}:{{ .Values.artifactory.gid }} {{ .Values.artifactory.customPersistentPodVolumeClaim.mountPath }}
         securityContext:
-          capabilities:
-            add:
-              - CHOWN
+          runAsUser: 0
         resources:
 {{ toYaml .Values.initContainers.resources | indent 10 }}
         volumeMounts:
           - name: {{ .Values.artifactory.customPersistentPodVolumeClaim.name }}
             mountPath: {{ .Values.artifactory.customPersistentPodVolumeClaim.mountPath }}
     {{- end }}
+      {{- if or .Values.artifactory.customCertificates.enabled .Values.global.customCertificates.enabled }}
+      - name: copy-custom-certificates
+        image: "{{ .Values.initContainerImage }}"
+        resources:
+{{ toYaml .Values.initContainers.resources | indent 10 }}
+        command:
+        - 'sh'
+        - '-c'
+        - >
+{{ include "artifactory-ha.copyCustomCerts" . | indent 10 }}
+        volumeMounts:
+          - name: volume
+            mountPath: {{ .Values.artifactory.persistence.mountPath }}
+          - name: ca-certs
+            mountPath: "/tmp/certs"
+      {{- end }}
     {{- if .Values.waitForDatabase }}
       {{- if or .Values.postgresql.enabled }}
       - name: "wait-for-db"
@@ -212,7 +239,7 @@ spec:
           cp -fv /tmp/migrationHelmInfo.yaml $scriptsPath/migrationHelmInfo.yaml;
           cp -fv /tmp/migrationStatus.sh $scriptsPath/migrationStatus.sh;
           mkdir -p {{ .Values.artifactory.persistence.mountPath }}/log;
-          bash $scriptsPath/migrationStatus.sh {{ default .Chart.AppVersion .Values.artifactory.image.tag }} {{ .Values.artifactory.migration.timeoutSeconds }} > >(tee {{ .Values.artifactory.persistence.mountPath }}/log/helm-migration.log) 2>&1;
+          bash $scriptsPath/migrationStatus.sh {{ include "artifactory-ha.app.version" . }} {{ .Values.artifactory.migration.timeoutSeconds }} > >(tee {{ .Values.artifactory.persistence.mountPath }}/log/helm-migration.log) 2>&1;
         resources:
 {{ toYaml .Values.artifactory.node.resources | indent 10 }}
         env:
@@ -259,8 +286,6 @@ spec:
               key: db-url
         {{- end }}
       {{- end }}
-        - name: JF_SHARED_NODE_PRIMARY
-          value: "false"
         - name: JF_SHARED_NODE_HAENABLED
           value: "true"
 {{- with .Values.artifactory.extraEnvironmentVariables }}
@@ -309,6 +334,10 @@ spec:
           subPath: gcp.credentials.json
   {{- end }}
 {{- end }}
+      {{- if .Values.hostAliases }}
+      hostAliases:
+{{ toYaml .Values.hostAliases | indent 6 }}
+      {{- end }}
       containers:
       - name: {{ .Values.artifactory.name }}
         image: {{ include "artifactory-ha.getImageInfoByValue" (list . "artifactory") }}
@@ -320,6 +349,12 @@ spec:
         - '-c'
         - >
           set -e;
+        {{- range .Values.artifactory.copyOnEveryStartup }}
+          {{- $targetPath := printf "%s/%s" $.Values.artifactory.persistence.mountPath .target }}
+          {{- $baseDirectory := regexFind ".*/" $targetPath }}
+          mkdir -p {{ $baseDirectory }};
+          cp -Lrf {{ .source }} {{ $.Values.artifactory.persistence.mountPath }}/{{ .target }};
+        {{- end }}
         {{- if .Values.artifactory.preStartCommand }}
           echo "Running custom preStartCommand command";
           {{ tpl .Values.artifactory.preStartCommand . }};
@@ -329,6 +364,7 @@ spec:
           {{ tpl . $ }};
         {{- end }}
           exec /entrypoint-artifactory.sh
+        {{- with .Values.artifactory.postStartCommand }}
         lifecycle:
           postStart:
             exec:
@@ -336,10 +372,9 @@ spec:
               - '/bin/bash'
               - '-c'
               - >
-                echo;
-              {{- with .Values.artifactory.postStartCommand }}
+                echo "Running custom postStartCommand command";
                 {{ tpl . $ }}
-              {{- end }}
+        {{- end }}
         env:
       {{- if and (not .Values.waitForDatabase) (not .Values.postgresql.enabled) }}
         - name: SKIP_WAIT_FOR_EXTERNAL_DB
@@ -384,8 +419,6 @@ spec:
               key: db-url
         {{- end }}
       {{- end }}
-        - name: JF_SHARED_NODE_PRIMARY
-          value: "false"
         - name: JF_SHARED_NODE_HAENABLED
           value: "true"
 {{- with .Values.artifactory.extraEnvironmentVariables }}
@@ -393,12 +426,16 @@ spec:
 {{- end }}
         ports:
         - containerPort: {{ .Values.artifactory.internalPort }}
+          name: http
         - containerPort: {{ .Values.artifactory.internalArtifactoryPort }}
+          name: http-internal
         {{- if .Values.artifactory.node.javaOpts.jmx.enabled }}
         - containerPort: {{ .Values.artifactory.node.javaOpts.jmx.port }}
+          name: tcp-jmx
         {{- end }}
         {{- if .Values.artifactory.ssh.enabled }}
         - containerPort: {{ .Values.artifactory.ssh.internalPort }}
+          name: tcp-ssh
         {{- end }}
         volumeMounts:
        {{- if .Values.artifactory.customPersistentVolumeClaim }}
@@ -459,13 +496,26 @@ spec:
       {{- end }}
         resources:
 {{ toYaml .Values.artifactory.node.resources | indent 10 }}
+        {{- if .Values.artifactory.startupProbe.enabled }}
+        startupProbe:
+          httpGet:
+            path: {{ .Values.artifactory.startupProbe.path }}
+            scheme: {{ include "artifactory-ha.scheme" . | upper }}
+            port: {{ .Values.artifactory.internalPort }}
+          initialDelaySeconds: {{ .Values.artifactory.startupProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.artifactory.startupProbe.periodSeconds }}
+          failureThreshold: {{ .Values.artifactory.startupProbe.failureThreshold }}
+          timeoutSeconds: {{ .Values.artifactory.startupProbe.timeoutSeconds }}
+        {{- end }}
         {{- if .Values.artifactory.readinessProbe.enabled }}
         readinessProbe:
           httpGet:
             path: {{ .Values.artifactory.readinessProbe.path }}
             scheme: {{ include "artifactory-ha.scheme" . | upper }}
             port: {{ .Values.artifactory.internalPort }}
+          {{- if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}
           initialDelaySeconds: {{ .Values.artifactory.readinessProbe.initialDelaySeconds }}
+          {{- end }}
           periodSeconds: {{ .Values.artifactory.readinessProbe.periodSeconds }}
           timeoutSeconds: {{ .Values.artifactory.readinessProbe.timeoutSeconds }}
           failureThreshold: {{ .Values.artifactory.readinessProbe.failureThreshold }}
@@ -477,7 +527,9 @@ spec:
             path: {{ .Values.artifactory.livenessProbe.path }}
             scheme: {{ include "artifactory-ha.scheme" . | upper }}
             port: {{ .Values.artifactory.internalPort }}
+          {{- if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}
           initialDelaySeconds: {{ .Values.artifactory.livenessProbe.initialDelaySeconds }}
+          {{- end }}
           periodSeconds: {{ .Values.artifactory.livenessProbe.periodSeconds }}
           timeoutSeconds: {{ .Values.artifactory.livenessProbe.timeoutSeconds }}
           failureThreshold: {{ .Values.artifactory.livenessProbe.failureThreshold }}
@@ -587,6 +639,11 @@ spec:
 {{ toYaml . | indent 8 }}
     {{- end }}
       volumes:
+      {{- if or .Values.artifactory.customCertificates.enabled .Values.global.customCertificates.enabled }}
+      - name: ca-certs
+        secret:
+          secretName: {{ default .Values.global.customCertificates.certificateSecretName .Values.artifactory.customCertificates.certificateSecretName }}
+      {{- end }}
       {{- if .Values.artifactory.binarystore.enabled }}
       - name: binarystore-xml
         secret:
@@ -626,7 +683,7 @@ spec:
       - name: bootstrap-config
         configMap:
           name: {{ .Values.artifactory.configMapName }}
-      {{- end}}      
+      {{- end}}
       {{- if or .Values.artifactory.loggers .Values.artifactory.catalinaLoggers }}
       - name: tail-logger-script
         configMap:
@@ -657,9 +714,11 @@ spec:
         persistentVolumeClaim:
           claimName: {{ template "artifactory-ha.fullname" . }}-backup-pvc
       {{- end }}
+      {{- if or .Values.systemYamlOverride.existingSecret .Values.artifactory.systemYaml }}
       - name: systemyaml
         secret:
-          secretName: {{ template "artifactory-ha.primary.name" . }}-system-yaml
+          secretName: {{ default (printf "%s-%s" (include "artifactory-ha.primary.name" .) "system-yaml") .Values.systemYamlOverride.existingSecret }}
+      {{- end }}
       {{- if .Values.artifactory.customPersistentVolumeClaim }}
       - name: {{ .Values.artifactory.customPersistentVolumeClaim.name }}
         persistentVolumeClaim:

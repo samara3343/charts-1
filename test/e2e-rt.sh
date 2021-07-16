@@ -14,7 +14,7 @@ connect_to_cluster() {
     source $REPO_ROOT/gke_cluster
 
     gcloud auth activate-service-account --key-file "$REPO_ROOT"/gcloud-service-key.json >/dev/null 2>&1
-    gcloud container clusters get-credentials "$CLUSTER_NAME" --project "$PROJECT_NAME" --zone "$CLOUDSDK_COMPUTE_ZONE"
+    gcloud container clusters get-credentials "$CLUSTER_NAME" --project "$PROJECT_NAME" --region "$CLOUDSDK_COMPUTE_REGION"
 }
 
 deploy() {
@@ -31,7 +31,7 @@ deploy() {
     echo
     echo "Waiting for Artifactory to be ready!"
     kubectl rollout status statefulset/artifactory-postgresql -w -n ${namespace} --request-timeout="10m"
-    kubectl rollout status statefulset/artifactory-artifactory -w -n ${namespace} --request-timeout="10m"
+    kubectl rollout status statefulset/artifactory -w -n ${namespace} --request-timeout="10m"
     kubectl get pods -n ${namespace}
     kubectl get svc -n ${namespace}
     echo

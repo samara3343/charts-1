@@ -3,10 +3,15 @@
 # Beware when changing values here. You should know what you are doing!
 # Access the values with {{ .Values.key.subkey }}
 
-global: {}
+global:
   # imageRegistry:
   # imagePullSecrets:
   #   - myRegistryKeySecretName
+  ## Chart.AppVersion can be overidden using global.versions.missionControl or image tags
+  ## Note: Order of preference is 1) global.versions 2) image tags 3) Chart.AppVersion
+  versions: {}
+    # missionControl:
+    # router:
   # jfrogUrl:
   # joinKey:
   # masterKey:
@@ -16,15 +21,39 @@ global: {}
 
   # customVolumeMounts: |
 
+  # customInitContainersBegin: |
+
   # customInitContainers: |
 
   # customSidecarContainers: |
 
-initContainerImage: docker.bintray.io/alpine:3.12
+  customCertificates:
+    enabled: false
+    # certificateSecretName:
+
+## Partially override mission-control.fullname template (eg: <releaseName>-<nameOverride>)
+# nameOverride:
+
+## Fully override mission-control.fullname template
+# fullnameOverride:
+
+initContainerImage: releases-docker.jfrog.io/alpine:3.13.5
 
 # For supporting pulling from private registries
 imagePullSecrets:
   # - myRegistryKeySecretName
+
+## Mission-control systemYaml override
+## This is for advanced usecases where users wants to provide their own systemYaml for configuring mission-control
+## Refer - https://www.jfrog.com/confluence/display/JFROG/Mission+Control+System+YAML
+## Note: This will override existing (default) .Values.missionControl.systemYaml in values.yaml
+## Alternatively, systemYaml can be overidden via customInitContainers using external sources like vaults, external repositories etc. Please refer customInitContainer section below for an example.
+## Note: Order of preference is 1) customInitContainers 2) systemYamlOverride existingSecret 3) default systemYaml in values.yaml
+systemYamlOverride:
+## You can use a pre-existing secret by specifying existingSecret
+  existingSecret:
+## The dataKey should be the name of the secret data key created.
+  dataKey:
 
 # Init containers
 initContainers:
@@ -68,8 +97,8 @@ common:
   #  posthook-end.sh: |-
   #    echo "This is a post end script"
 
-  ## Add custom init containers execution after predefined init containers
-  customInitContainers: |
+  ## Add custom init containers execution before predefined init containers
+  customInitContainersBegin: |
   #  - name: "custom-setup"
   #    image: "{{ .Values.initContainerImage }}"
   #    imagePullPolicy: "{{ .Values.imagePullPolicy }}"
@@ -77,6 +106,19 @@ common:
   #      - 'sh'
   #      - '-c'
   #      - 'touch {{ .Values.missionControl.persistence.mountPath }}/example-custom-setup'
+  #    volumeMounts:
+  #      - mountPath: "{{ .Values.missionControl.persistence.mountPath }}"
+  #        name: data-volume
+
+  ## Add custom init containers execution after predefined init containers
+  customInitContainers: |
+  #  - name: "custom-systemyaml-setup"
+  #    image: "{{ .Values.initContainerImage }}"
+  #    imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+  #    command:
+  #      - 'sh'
+  #      - '-c'
+  #      - 'wget -O {{ .Values.missionControl.persistence.mountPath }}/etc/system.yaml https://<repo-url>/systemyaml'
   #    volumeMounts:
   #      - mountPath: "{{ .Values.missionControl.persistence.mountPath }}"
   #        name: data-volume
@@ -172,8 +214,8 @@ serviceAccount:
 dbSetup:
   postgresql:
     image:
-      repository: docker.bintray.io/postgres
-      tag: 12.3-alpine
+      repository: releases-docker.jfrog.io/postgres
+      tag: 13.2-alpine
       pullPolicy: IfNotPresent
 
 # PostgreSQL
@@ -183,16 +225,15 @@ dbSetup:
 postgresql:
   enabled: true
   image:
-    registry: docker.bintray.io
+    registry: releases-docker.jfrog.io
     repository: bitnami/postgresql
-    tag: 12.3.0-debian-10-r71
+    tag: 13.2.0-debian-10-r55
   postgresqlUsername: postgres
   postgresqlPassword: ""
   postgresqlDatabase: mission_control
   postgresqlExtendedConf:
-    listenAddresses: "'*'"
+    listenAddresses: "*"
     maxConnections: "1500"
-
   db:
     name: mission_control
     sslmode: "false"
@@ -207,13 +248,13 @@ postgresql:
     port: 5432
   persistence:
     enabled: true
-    size: 50Gi
-    existingClaim:
-  master:
+    size: 100Gi
+    # existingClaim:
+  primary:
     nodeSelector: {}
     affinity: {}
     tolerations: []
-  slave:
+  readReplicas:
     nodeSelector: {}
     affinity: {}
     tolerations: []
@@ -255,17 +296,19 @@ database:
 
 elasticsearch:
   enabled: true
+  ## certificatesSecretName:
   name: elasticsearch
-  initContainerImage: docker.bintray.io/alpine:3.12
+  initContainerImage: releases-docker.jfrog.io/alpine:3.13.5
   configureDockerHost: true
   image:
-    registry: docker.bintray.io
-    repository: jfrog/elasticsearch-oss
-    tag: 7.6.1
+    registry: releases-docker.jfrog.io
+    repository: jfrog/elasticsearch-oss-sg
+    tag: 7.10.2
     pullPolicy: IfNotPresent
   ## Enter elasticsearch connection details
-  url: http://localhost:9200
-  httpPort: 9200
+  ## By default url is set to localhost:8082 (router)
+  ## If external elasticsearch is used, provide external elasticsearch url and set elasticsearch.enabled=false
+  url: '{{ include "elasticsearch.url" . }}'
   transportPort: 9300
   username: "admin"
   password: "admin"
@@ -307,21 +350,55 @@ elasticsearch:
   #    memory: "2.5Gi"
   #    cpu: "500m"
 
+  livenessProbe:
+    enabled: true
+    config: |
+      httpGet:
+        path: /_cluster/health
+        port: 9200
+      initialDelaySeconds: {{ if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}90{{ else }}0{{ end }}
+      periodSeconds: 10
+      timeoutSeconds: 10
+      failureThreshold: 3
+      successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    config: |
+      httpGet:
+        path: /_cluster/health
+        port: 9200
+      initialDelaySeconds: {{ if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}60{{ else }}0{{ end }}
+      periodSeconds: 10
+      timeoutSeconds: 10
+      failureThreshold: 10
+      successThreshold: 1
+
+  startupProbe:
+    enabled: true
+    config: |
+      httpGet:
+        path: /_cluster/health
+        port: 9200
+      initialDelaySeconds: 30
+      failureThreshold: 60
+      periodSeconds: 5
+
 podRestartTime:
 
 applicationConfigs: {}
 
 logger:
   image:
-    registry: docker.bintray.io
+    registry: releases-docker.jfrog.io
     repository: busybox
-    tag: 1.31.1
+    tag: 1.32.1
 
 missionControl:
   name: mission-control
   ## Note that by default we use appVersion to get image tag/version
   image:
-    registry: docker.bintray.io
+    registry: releases-docker.jfrog.io
     repository: jfrog/mission-control
     # tag:
   appContext: mc
@@ -373,6 +450,10 @@ missionControl:
   ## Artifactory URL . Mandatory
   jfrogUrl:
 
+  customCertificates:
+    enabled: false
+    # certificateSecretName:
+
   podRestartTime:
   repository: jfrog-mission-control
   package: mc-docker-installer
@@ -390,7 +471,13 @@ missionControl:
       elasticsearch:
         username: {{ .Values.elasticsearch.username }}
         password: {{ .Values.elasticsearch.password }}
-        url: {{ .Values.elasticsearch.url }}
+      {{- if and .Values.elasticsearch.enabled  (gt (int .Values.replicaCount) 1)  }}
+        clusterSetup: "yes"
+      {{- end }}
+      {{- if not .Values.elasticsearch.enabled }}
+        external: true
+        url: {{ tpl .Values.elasticsearch.url . }}
+      {{- end }}
       database:
       {{- if .Values.postgresql.enabled }}
         type: postgresql
@@ -401,12 +488,12 @@ missionControl:
         driver: "{{ .Values.database.driver }}"
       {{- end }}
 
-    {{- if .Values.postgresql.enabled }}
     mc:
+    {{- if .Values.postgresql.enabled }}
       database:
         username: {{ .Values.postgresql.db.user }}
         schema: {{ .Values.postgresql.db.jfmcSchema }}
-
+    {{- end }}
       extraJavaOpts: >
       {{- with .Values.missionControl.javaOpts }}
       {{- if .xms }}
@@ -421,9 +508,11 @@ missionControl:
       {{- end }}
 
     insight-scheduler:
+    {{- if .Values.postgresql.enabled }}
       database:
         username: {{ .Values.postgresql.db.user }}
         schema: {{ .Values.postgresql.db.jfscSchema }}
+    {{- end }}
       extraJavaOpts: >
       {{- with .Values.insightScheduler.javaOpts }}
       {{- if .xms }}
@@ -438,11 +527,16 @@ missionControl:
       {{- end }}
 
     insight-server:
+    {{- if .Values.postgresql.enabled }}
       database:
         username: {{ .Values.postgresql.db.user }}
         schema: {{ .Values.postgresql.db.jfisSchema }}
     {{- end }}
-
+      clients:
+        elasticsearch:
+          connectionWaitTimeoutSecs: {{ .Values.insightServer.clients.elasticsearch.connectionWaitTimeoutSecs }}
+          searchguard:
+            connectionWaitTimeoutSecs: {{ .Values.insightServer.clients.elasticsearch.searchguard.connectionWaitTimeoutSecs }}
 
   persistence:
     enabled: true
@@ -488,6 +582,44 @@ missionControl:
   internalPort: 8080
   externalPort: 80
 
+  livenessProbe:
+    enabled: true
+    config: |
+      exec:
+        command:
+        - curl
+        - http://127.0.0.1:{{ .Values.missionControl.internalPort }}/api/v1/system/ping
+      initialDelaySeconds: {{ if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}90{{ else }}0{{ end }}
+      periodSeconds: 10
+      timeoutSeconds: 1
+      failureThreshold: 3
+      successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    config: |
+      exec:
+        command:
+        - curl
+        - http://127.0.0.1:{{ .Values.missionControl.internalPort }}/api/v1/system/ping
+      initialDelaySeconds: {{ if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}60{{ else }}0{{ end }}
+      periodSeconds: 10
+      timeoutSeconds: 1
+      failureThreshold: 10
+      successThreshold: 1
+
+  startupProbe:
+    enabled: true
+    config: |
+      exec:
+        command:
+        - curl
+        - http://127.0.0.1:{{ .Values.missionControl.internalPort }}/api/v1/system/ping
+      initialDelaySeconds: 30
+      failureThreshold: 60
+      periodSeconds: 5
+      timeoutSeconds: 1
+
   ## Extra pre start command to run extra commands before container starts
   # preStartCommand:
   ## For example, to import trusted keystore ( Need to mount the certificates first )
@@ -497,12 +629,18 @@ insightServer:
   name: insight-server
   ## Note that by default we use appVersion to get image tag/version
   image:
-    registry: docker.bintray.io
+    registry: releases-docker.jfrog.io
     repository: jfrog/insight-server
     # tag:
   appContext: insight
   home: /opt/jfrog
-  internalHttpPort: 8087
+  internalPort: 8087
+  ## Timeout in seconds (default 60 seconds) for which insightServer waits for elasticsearch to comeup.
+  clients:
+    elasticsearch:
+      connectionWaitTimeoutSecs: 180
+      searchguard:
+        connectionWaitTimeoutSecs: 1800
   ## This can be used to whitelist the range of IPs allowed to be served by Insight Server service
   ## The value must follow CIDR format
   allowIP: "0.0.0.0/0"
@@ -547,11 +685,50 @@ insightServer:
   #    memory: "128Mi"
   #    cpu: "50m"
 
+  livenessProbe:
+    enabled: true
+    config: |
+      exec:
+        command:
+        - curl
+        - http://127.0.0.1:{{ .Values.insightServer.internalPort }}/api/v1/system/ping
+      initialDelaySeconds: {{ if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}90{{ else }}0{{ end }}
+      periodSeconds: 10
+      timeoutSeconds: 1
+      failureThreshold: 3
+      successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    config: |
+      exec:
+        command:
+        - curl
+        - http://127.0.0.1:{{ .Values.insightServer.internalPort }}/api/v1/system/ping
+      initialDelaySeconds: {{ if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}60{{ else }}0{{ end }}
+      periodSeconds: 10
+      timeoutSeconds: 1
+      failureThreshold: 10
+      successThreshold: 1
+
+
+  startupProbe:
+    enabled: true
+    config: |
+      exec:
+        command:
+        - curl
+        - http://127.0.0.1:{{ .Values.insightServer.internalPort }}/api/v1/system/ping
+      initialDelaySeconds: 30
+      failureThreshold: 60
+      periodSeconds: 5
+      timeoutSeconds: 1
+
 insightScheduler:
   name: insight-scheduler
   ## Note that by default we use appVersion to get image tag/version
   image:
-    registry: docker.bintray.io
+    registry: releases-docker.jfrog.io
     repository: jfrog/insight-scheduler
     # tag:
   appContext: insight-scheduler
@@ -606,12 +783,51 @@ insightScheduler:
   #    memory: "128Mi"
   #    cpu: "50m"
 
+  livenessProbe:
+    enabled: true
+    config: |
+      exec:
+        command:
+        - curl
+        - http://127.0.0.1:{{ .Values.insightScheduler.internalPort }}/api/v1/system/ping
+      initialDelaySeconds: {{ if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}90{{ else }}0{{ end }}
+      periodSeconds: 10
+      timeoutSeconds: 1
+      failureThreshold: 3
+      successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    config: |
+      exec:
+        command:
+        - curl
+        - http://127.0.0.1:{{ .Values.insightScheduler.internalPort }}/api/v1/system/ping
+      initialDelaySeconds: {{ if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}60{{ else }}0{{ end }}
+      periodSeconds: 10
+      timeoutSeconds: 1
+      failureThreshold: 10
+      successThreshold: 1
+
+
+  startupProbe:
+    enabled: true
+    config: |
+      exec:
+        command:
+        - curl
+        - http://127.0.0.1:{{ .Values.insightScheduler.internalPort }}/api/v1/system/ping
+      initialDelaySeconds: 30
+      failureThreshold: 60
+      periodSeconds: 5
+      timeoutSeconds: 1
+
 router:
   name: router
   image:
-    registry: docker.bintray.io
+    registry: releases-docker.jfrog.io
     repository: jfrog/router
-    tag: 1.4.3
+    tag: 7.19.8
     imagePullPolicy: IfNotPresent
   internalPort: 8082
   externalPort: 8082
@@ -631,9 +847,9 @@ router:
         path: /router/api/v1/system/health
         scheme: {{ include "mission-control.scheme" . | upper }}
         port: {{ .Values.router.internalPort }}
-      initialDelaySeconds: 90
+      initialDelaySeconds: {{ if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}90{{ else }}0{{ end }}
       periodSeconds: 10
-      timeoutSeconds: 1
+      timeoutSeconds: 10
       failureThreshold: 3
       successThreshold: 1
 
@@ -644,11 +860,23 @@ router:
         path: /router/api/v1/system/health
         scheme: {{ include "mission-control.scheme" . | upper }}
         port: {{ .Values.router.internalPort }}
-      initialDelaySeconds: 60
+      initialDelaySeconds: {{ if semverCompare "<v1.18.0-0" .Capabilities.KubeVersion.Version }}60{{ else }}0{{ end }}
       periodSeconds: 10
-      timeoutSeconds: 1
+      timeoutSeconds: 10
       failureThreshold: 10
       successThreshold: 1
+
+  startupProbe:
+    enabled: true
+    config: |
+      httpGet:
+        path: /router/api/v1/system/health
+        scheme: {{ include "mission-control.scheme" . | upper }}
+        port: {{ .Values.router.internalPort }}
+      initialDelaySeconds: 30
+      failureThreshold: 60
+      periodSeconds: 5
+      timeoutSeconds: 1
 
   persistence:
     accessMode: ReadWriteOnce
@@ -725,3 +953,19 @@ filebeat:
     output:
       logstash:
          hosts: ["{{ .Values.filebeat.logstashUrl }}"]
+
+## Allows to add additional kubernetes resources
+## Use --- as a separator between multiple resources
+additionalResources: |
+
+# Adding entries to a Pod's /etc/hosts file
+# For an example, refer - https://kubernetes.io/docs/concepts/services-networking/add-entries-to-pod-etc-hosts-with-host-aliases
+hostAliases: []
+#  - ip: "127.0.0.1"
+#    hostnames:
+#      - "foo.local"
+#      - "bar.local"
+#  - ip: "10.1.2.3"
+#    hostnames:
+#      - "foo.remote"
+#      - "bar.remote"

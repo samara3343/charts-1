@@ -5,7 +5,7 @@ postgresql:
   db:
     password: password
 global:
-  jfrogUrl: http://artifactory-artifactory.rt:8082
+  jfrogUrl: http://artifactory.rt:8082
   masterKey: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   joinKey: EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
   customVolumes: |

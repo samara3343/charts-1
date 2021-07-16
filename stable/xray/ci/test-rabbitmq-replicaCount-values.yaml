@@ -3,16 +3,12 @@
 unifiedUpgradeAllowed: true
 databaseUpgradeReady: true
 xray:
-  jfrogUrl: http://artifactory-artifactory.rt:8082
+  jfrogUrl: http://artifactory.rt:8082
 
 postgresql:
   postgresqlPassword: xray
 
-rabbitmq-ha:
-  enabled: false
-
 rabbitmq:
-  enabled: true
   replicaCount: 3
   auth:
     username: guest

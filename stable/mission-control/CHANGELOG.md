@@ -1,6 +1,144 @@
 # JFrog Mission-Control Chart Changelog
 All changes to this chart will be documented in this file.
 
+## [104.7.7] - June 24, 2021
+* Bumping chart version to align with app version
+* **Breaking change:** 
+* Increased default postgresql persistence  size to `100Gi` 
+* Update postgresql tag version to `13.2.0-debian-10-r55`
+* Update postgresql chart version to `10.3.18` in chart.yaml - [10.x Upgrade Notes](https://github.com/bitnami/charts/tree/master/bitnami/postgresql#to-1000)
+* If this is a new deployment or you already use an external database (`postgresql.enabled=false`), these changes **do not affect you**!
+* If this is an upgrade and you are using the default PostgreSQL (`postgresql.enabled=true`), you need to pass previous 9.x/10.x/12.x's postgresql.image.tag, previous postgresql.persistence.size and databaseUpgradeReady=true
+* **IMPORTANT**
+* This chart is only helm v3 compatible
+* Update router version to `7.19.8`
+* Update alpine tag version to `3.13.5`
+* Fix broken support for startupProbe for k8s < 1.18.x
+* Remove `prepare-storage` init container fixes openShift issue
+* Added support for `nameOverride` and `fullnameOverride` in values.yaml
+* Added configurable `.Values.global.versions.router` in values.yaml
+
+## [5.8.4] - June 3, 2021
+* Update mission-Control to version `4.7.5` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Mission+Control+Release+Notes#MissionControlReleaseNotes-MissionControl4.7.5)
+
+## [5.8.3] - May 26, 2021
+* Update mission-Control to version `4.7.4` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Mission+Control+Release+Notes#MissionControlReleaseNotes-MissionControl4.7.4)
+
+## [5.8.2] - April 15, 2021
+* Update mission-Control to version `4.7.3` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Mission+Control+Release+Notes#MissionControlReleaseNotes-MissionControl4.7.3)
+
+## [5.8.1] - April 6, 2021
+* Update alpine tag version to `3.13.4`
+
+## [5.8.0] - Apr 5, 2021
+* **IMPORTANT**
+* Added `charts.jfrog.io` as default JFrog Helm repository
+
+## [5.7.2] - Mar 31, 2021
+* Update mission-Control to version `4.7.2` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Mission+Control+Release+Notes#MissionControlReleaseNotes-MissionControl4.7.2)
+
+## [5.7.1] - Mar 30, 2021
+* Update router version to `7.17.2`
+* Add `timeoutSeconds` to all exec probes - Please refer [here](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes)
+
+## [5.7.0] - Mar 22, 2021
+* Update mission-Control to version `4.7.1`
+* Update router version to `7.17.1`
+* Update Elasticsearch version to `7.10.2` with Searchguard
+* Add support for graceful shutdown
+* Optimized startupProbe time
+
+## [5.6.0] - Mar 18, 2021
+* Add support to startupProbe
+
+## [5.5.3] - Mar 12, 2021
+* Update mission-Control to version `4.6.5` - [Release notes](https://www.jfrog.com/confluence/display/JFROG/Mission+Control+Release+Notes#MissionControlReleaseNotes-MissionControl4.6.5)
+
+## [5.5.2] - Mar 9, 2021
+* Removed bintray URL references in the chart
+* Update router version to `7.15.3`
+
+## [5.5.1] - Feb 19, 2021
+* Update router version to `7.15.2`
+* Update busybox tag version to `1.32.1`
+
+## [5.5.0] - Feb 08, 2021
+* Support for custom certificates using secrets
+* **Important:** Switched docker images download from `docker.bintray.io` to `releases-docker.jfrog.io`
+* Update alpine tag version to `3.13.1`
+* Update router version to `7.12.6`
+
+## [5.4.6] - Jan 27, 2021
+* Update router version to `7.12.4`
+
+## [5.4.5] - Jan 25, 2021
+* Add support for hostAliases
+
+## [5.4.4] - Jan 18, 2021
+* Update Mission Control version to 4.6.3
+* Upgrade Elasticsearch version to 7.8.1 with Searchguard
+* Added support for `.Values.elasticsearch.username`
+* Added support for custom tls certificates for elastic searchguard
+* **IMPORTANT**
+* If the certificates are changed, rolling update is not possible. Scale down to one replica and do an helm upgrade
+
+## [5.4.3] - Jan 8, 2021
+* Add support for creating additional kubernetes resources
+
+## [5.4.2] - Dec 17, 2020
+* Update Mission Control version to 4.6.2
+
+## [5.4.1] - Dec 11, 2020
+* Added configurable `.Values.global.versions.missionControl` in values.yaml
+
+## [5.4.0] - Dec 10, 2020
+* Update postgresql tag version to `12.5.0-debian-10-r25`
+* Updated chart maintainers email
+
+## [5.3.4] - Dec 4, 2020
+* **Important:** Renamed `.Values.systemYaml` to `.Values.systemYamlOverride`
+
+## [5.3.3] - Dec 3, 2020
+* Updated port namings on services and pods to allow for istio protocol discovery
+
+## [5.3.2] - Nov 30, 2020
+* Update router version to `7.11.5`
+* Added special notes in readme for upgrading to 5.2.x and above chart versions
+
+## [5.3.1] - Nov 30, 2020
+* Update Mission Control version to 4.6.1
+* Update router version to `7.11.2`
+
+## [5.3.0] - Nov 16, 2020
+* Update Mission Control version to 4.6.0
+* Update alpine tag version to `3.12.1`
+
+## [5.2.2] - Nov 10, 2020
+* Pass system.yaml via external secret for advanced usecases
+* Added configurable `insightServer.clients.elasticsearch.searchguard.connectionWaitTimeoutSecs` in values.yaml
+* Bugfix - stateful set not picking up changes to database secrets
+
+## [5.2.1] - Nov 9, 2020
+* Expose router port 8082 for inter pod communication
+
+## [5.2.0] - Oct 27, 2020
+* Upgrade Elasticsearch version to 7.8.0 with Searchguard
+* Added configurable `insightServer.clients.elasticsearch.connectionWaitTimeoutSecs` in values.yaml 
+* **IMPORTANT**
+* Enable Elasticsearch request via router
+
+## [5.1.1] - Oct 24, 2020
+* Update router version to `1.4.4`
+
+## [5.1.0] - Oct 13, 2020
+* **Breaking**
+* Changed `insightServer.internalHttpPort` to `insightServer.internalPort`
+* Add support for livenessProbe and readinessProbe for all microservices
+* Updated UPGRADE_NOTES.md - Upgrading to 4.x and above charts versions
+
+## [5.0.5] - Oct 9, 2020
+* Add support for customInitContainersBegin
+
 ## [5.0.4] - Oct 1, 2020
 * Added support for resources in init containers
 

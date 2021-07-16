@@ -2,8 +2,13 @@ unifiedUpgradeAllowed: true
 databaseUpgradeReady: true
 postgresql:
   postgresqlPassword: xray
+rabbitmq:
+  auth:
+    username: guest
+    password: password
+
 global:
-  jfrogUrl: http://artifactory-artifactory.rt:8082
+  jfrogUrl: http://artifactory.rt:8082
   masterKey: FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
   joinKey: EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
   customVolumes: |

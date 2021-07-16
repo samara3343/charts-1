@@ -3,21 +3,7 @@
 Expand the name of the chart.
 */}}
 {{- define "mission-control.name" -}}
-{{- default .Chart.Name .Values.missionControl.name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
-{{/*
-The insight-scheduler name
-*/}}
-{{- define "insight-scheduler.name" -}}
-{{- default .Chart.Name .Values.insightScheduler.name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
-{{/*
-The insight-server name
-*/}}
-{{- define "insight-server.name" -}}
-{{- default .Chart.Name .Values.insightServer.name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{/*
@@ -26,10 +12,10 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 If release name contains chart name it will be used as a full name.
 */}}
 {{- define "mission-control.fullname" -}}
-{{- if .Values.missionControl.fullnameOverride -}}
-{{- .Values.missionControl.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- if .Values.fullnameOverride -}}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
-{{- $name := default .Chart.Name .Values.missionControl.name -}}
+{{- $name := default .Chart.Name .Values.nameOverride -}}
 {{- if contains $name .Release.Name -}}
 {{- .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -48,42 +34,6 @@ This will create one entry per replica.
   {{- range $i, $e := untilStep 0 $replicas 1 -}}
 {{ $releaseName }}-{{ $i }},
   {{- end -}}
-{{- end -}}
-
-{{/*
-Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
-If release name contains chart name it will be used as a full name.
-*/}}
-{{- define "insight-scheduler.fullname" -}}
-{{- if .Values.insightScheduler.fullnameOverride -}}
-{{- .Values.insightScheduler.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := default .Chart.Name .Values.insightScheduler.name -}}
-{{- if contains $name .Release.Name -}}
-{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
-If release name contains chart name it will be used as a full name.
-*/}}
-{{- define "insight-server.fullname" -}}
-{{- if .Values.insightServer.fullnameOverride -}}
-{{- .Values.insightServer.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := default .Chart.Name .Values.insightServer.name -}}
-{{- if contains $name .Release.Name -}}
-{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
 {{- end -}}
 
 {{/*
@@ -192,6 +142,17 @@ imagePullSecrets:
 {{- end -}}
 
 {{/*
+Resolve customInitContainersBegin value
+*/}}
+{{- define "mission-control.customInitContainersBegin" -}}
+{{- if .Values.global.customInitContainersBegin -}}
+{{- .Values.global.customInitContainersBegin -}}
+{{- else if .Values.common.customInitContainersBegin -}}
+{{- .Values.common.customInitContainersBegin -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Resolve customInitContainers value
 */}}
 {{- define "mission-control.customInitContainers" -}}
@@ -246,6 +207,12 @@ Return the proper mission-control chart image names
 {{- $repositoryName := index $dot.Values $indexReference "image" "repository" -}}
 {{- $tag := default $dot.Chart.AppVersion (index $dot.Values $indexReference "image" "tag") | toString -}}
 {{- if $dot.Values.global }}
+    {{- if and $dot.Values.global.versions.router (eq $indexReference "router") }}
+    {{- $tag = $dot.Values.global.versions.router | toString -}}
+    {{- end -}}
+    {{- if and $dot.Values.global.versions.missionControl (or (eq $indexReference "insightScheduler") (eq $indexReference "missionControl") (eq $indexReference "insightServer") ) }}
+    {{- $tag = $dot.Values.global.versions.missionControl | toString -}}
+    {{- end -}}
     {{- if $dot.Values.global.imageRegistry }}
         {{- printf "%s/%s:%s" $dot.Values.global.imageRegistry $repositoryName $tag -}}
     {{- else -}}
@@ -254,4 +221,25 @@ Return the proper mission-control chart image names
 {{- else -}}
     {{- printf "%s/%s:%s" $registryName $repositoryName $tag -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Resolve elastic search url
+*/}}
+{{- define "elasticsearch.url" -}}
+{{- if .Values.router.tlsEnabled -}}
+{{- printf "https://localhost:%d" (int .Values.router.internalPort) -}}
+{{- else -}}
+{{- printf "http://localhost:%d" (int .Values.router.internalPort) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Custom certificate copy command
+*/}}
+{{- define "mission-control.copyCustomCerts" -}}
+echo "Copy custom certificates to {{ .Values.missionControl.persistence.mountPath }}/etc/security/keys/trusted";
+mkdir -p {{ .Values.missionControl.persistence.mountPath }}/etc/security/keys/trusted;
+find /tmp/certs -type f -not -name "*.key" -exec cp -v {} {{ .Values.missionControl.persistence.mountPath }}/etc/security/keys/trusted \;;
+find {{ .Values.missionControl.persistence.mountPath }}/etc/security/keys/trusted/ -type f -name "tls.crt" -exec mv -v {} {{ .Values.missionControl.persistence.mountPath }}/etc/security/keys/trusted/ca.crt \;;
 {{- end -}}
